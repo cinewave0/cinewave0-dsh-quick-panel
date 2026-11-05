@@ -467,6 +467,7 @@ export function apply(ctx) {
     question: null,
     questionAnswer: null,
     questionDebug: null,
+    dshFocused: null,
   }
   let approvalSeq = 0
   let pendingApproval = null
@@ -731,6 +732,9 @@ export function apply(ctx) {
     if (!companionIsOpen() || !sessionId || sessionId !== state.activeSessionId) {
       return next()
     }
+    // DSH's own card stays authoritative while its window has focus; the
+    // external panel only takes over when DSH is in the background.
+    if (live.dshFocused !== false) return next()
     if (pendingApproval) return next()
     const signal = request.signal
     if (signal && signal.aborted) return 'cancelled'
@@ -770,7 +774,7 @@ export function apply(ctx) {
       // Closing or losing the companion hands the request back to the DSH UI.
       monitor = setInterval(() => {
         if (settled) return
-        if (!companionIsOpen()) {
+        if (!companionIsOpen() || live.dshFocused === true) {
           settled = true
           clear()
           resolve(delegate())
@@ -1322,6 +1326,7 @@ export function apply(ctx) {
         live.partial = normalizeLivePartial(body.partial)
       }
       if (typeof body.running === 'boolean') live.running = body.running
+      if (typeof body.dshFocused === 'boolean') live.dshFocused = body.dshFocused
       if (typeof body.latest === 'string') live.latest = body.latest.slice(0, 600)
       if ('question' in body) {
         live.question = normalizeQuestion(body.question)

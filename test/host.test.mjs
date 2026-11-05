@@ -187,6 +187,7 @@ test('approval claim, allow/reject, stale and delegation', async () => {
   const harness = makeHarness('approval', { activeSessionId: 'session-test' })
   try {
     await harness.post({ type: 'companion-ping' })
+    await harness.post({ dshFocused: false })
     const listener = harness.listeners.get('approval/request')
     assert.equal(typeof listener, 'function')
     let nextCalls = 0
@@ -213,6 +214,11 @@ test('approval claim, allow/reject, stale and delegation', async () => {
     assert.equal(result.status, 200)
     assert.equal(await pending, 'allowed-once')
     assert.equal((await harness.state()).approval, null)
+
+    await harness.post({ dshFocused: true })
+    const focused = await listener(request(), next)
+    assert.equal(focused, 'builtin')
+    await harness.post({ dshFocused: false })
 
     pending = listener(request(), next)
     state = await harness.state()

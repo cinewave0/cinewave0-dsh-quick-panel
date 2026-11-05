@@ -591,6 +591,8 @@ window.__ModuleLoader__.load({
       liveSignature: '',
       unsubscribeLive: null,
       unsubscribeQuestions: null,
+      focusHandler: null,
+      visibilityHandler: null,
       lastQuestionAnswerId: '',
 
       async init() {
@@ -628,6 +630,11 @@ window.__ModuleLoader__.load({
           this.unsubscribeLive = store.subscribe(() => this.scheduleLive())
           this.bindQuestions()
           this.scheduleLive(true)
+          this.focusHandler = () => this.scheduleLive(true)
+          this.visibilityHandler = () => this.scheduleLive(true)
+          window.addEventListener('focus', this.focusHandler)
+          window.addEventListener('blur', this.focusHandler)
+          document.addEventListener('visibilitychange', this.visibilityHandler)
           this.pollTimer = window.setInterval(() => this.poll(), 2500)
         } catch (_error) {
           /* the Host bridge is optional; localStorage remains the fallback */
@@ -837,6 +844,7 @@ window.__ModuleLoader__.load({
           usage: store.state.usage || null,
           question: this.readQuestion(),
           questionDebug: this.questionDebug(),
+          dshFocused: document.hasFocus(),
         }
         const signature = JSON.stringify(payload)
         if (signature === this.liveSignature) return
@@ -934,6 +942,15 @@ window.__ModuleLoader__.load({
         if (this.liveTimer) window.clearTimeout(this.liveTimer)
         if (this.unsubscribeLive) this.unsubscribeLive()
         if (this.unsubscribeQuestions) this.unsubscribeQuestions()
+        if (this.focusHandler) {
+          window.removeEventListener('focus', this.focusHandler)
+          window.removeEventListener('blur', this.focusHandler)
+          this.focusHandler = null
+        }
+        if (this.visibilityHandler) {
+          document.removeEventListener('visibilitychange', this.visibilityHandler)
+          this.visibilityHandler = null
+        }
         this.syncTimer = 0
         this.pollTimer = 0
         this.sessionTimer = 0
