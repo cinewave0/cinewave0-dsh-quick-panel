@@ -845,6 +845,7 @@ window.__ModuleLoader__.load({
           question: this.readQuestion(),
           questionDebug: this.questionDebug(),
           dshFocused: document.hasFocus(),
+          dshVisible: document.visibilityState === 'visible',
         }
         const signature = JSON.stringify(payload)
         if (signature === this.liveSignature) return
