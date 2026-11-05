@@ -1,6 +1,6 @@
 # 快捷面板 / Quick Panel
 
-> 当前版本：1.0.0
+> 当前版本：1.0.1
 
 DSH Desktop 的快捷面板插件：在 DSH 窗口内提供一个浮岛与面板，并附带一个可常驻桌面的独立小应用（Electron 伴生窗）。
 
@@ -35,7 +35,7 @@ plugin_manager install_bundle  target = <项目目录>
 https://cinewave0.github.io/cinewave0-dsh-quick-panel/market/index.json
 ```
 
-然后搜索 `Quick Panel` 安装 1.0.0。索引固定到 Git commit，版本更新后需要重新安装。
+然后搜索 `Quick Panel` 安装 1.0.1。索引固定到 Git commit，版本更新后需要重新安装。
 
 不要把本目录的 `package.json` / `cordis.patch.yml` 手写进 profile；统一走 `install_bundle`。
 
