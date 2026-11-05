@@ -27,12 +27,12 @@
       "icon": "../icon.svg",
       "versions": [
         {
-          "version": "1.0.0",
-          "publishTimestamp": 1793892765,
+          "version": "1.0.1",
+          "publishTimestamp": 1793893490,
           "source": {
             "type": "git",
             "url": "https://github.com/cinewave0/cinewave0-dsh-quick-panel",
-            "commit": "8253da38d816462f3147c34a7f533347971844c1"
+            "commit": "3dd9a45b9bf9efde3627f029caa61387bb9305c6"
           },
           "engines": {
             "dsh": ">=0.2.2-rc.1 <0.3.0"
