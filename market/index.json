@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "title": {
+    "en": "Quick Panel",
+    "zh": "快捷面板"
+  },
+  "description": {
+    "en": "Standalone quick panel for DSH: todos, reminders, live session view and quick input.",
+    "zh": "DSH 独立快捷面板：待办、提醒、实时消息和快速输入。"
+  },
+  "plugins": [
+    {
+      "name": "dsh-quick-panel",
+      "title": {
+        "en": "Quick Panel",
+        "zh": "快捷面板"
+      },
+      "description": {
+        "en": "A standalone DSH companion window with todos, reminders, live messages, approvals and quick input.",
+        "zh": "带待办、提醒、实时消息、审批和快速输入的 DSH 独立伴生窗。"
+      },
+      "author": "cinewave0",
+      "homepage": "https://github.com/cinewave0/cinewave0-dsh-quick-panel",
+      "repository": {
+        "url": "https://github.com/cinewave0/cinewave0-dsh-quick-panel"
+      },
+      "icon": "../icon.svg",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "publishTimestamp": 1793892765,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/cinewave0/cinewave0-dsh-quick-panel",
+            "commit": "8253da38d816462f3147c34a7f533347971844c1"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0"
+          }
+        }
+      ]
+    }
+  ]
+}
