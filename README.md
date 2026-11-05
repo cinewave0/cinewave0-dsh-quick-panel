@@ -29,7 +29,7 @@ plugin_manager install_bundle  target = <项目目录>
 
 ## 从 DSH 市场安装
 
-DSH → Plugins → Discover / Settings，添加插件索引：
+仓库公开并开启 GitHub Pages 后，DSH → Plugins → Discover / Settings 添加插件索引：
 
 ```text
 https://cinewave0.github.io/cinewave0-dsh-quick-panel/market/index.json

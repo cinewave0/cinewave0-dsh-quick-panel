@@ -2,7 +2,7 @@
 
 仓库：<https://github.com/cinewave0/cinewave0-dsh-quick-panel>
 
-**当前状态：已推送，GitHub Pages 已开启，索引已可访问。**
+**当前状态：仓库已推送并设为私密；GitHub Pages 在私密状态下不可访问（HTTP 404）。脱敏完成后，把仓库改回 public，并在 Settings → Pages 重新开启 Pages。**
 
 DSH 市场不是上传到某个后台，而是读取一个 **HTTPS 上的 plugin market index JSON**。  
 本项目的索引文件是 `market/index.json`，发布后地址为：
