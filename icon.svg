@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Quick panel">
+  <defs>
+    <linearGradient id="qp-bg" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5b78ff"/>
+      <stop offset="1" stop-color="#3550d6"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="52" height="52" rx="14" fill="url(#qp-bg)"/>
+  <rect x="15" y="17" width="34" height="30" rx="6" fill="#ffffff" opacity="0.96"/>
+  <rect x="20" y="23" width="15" height="3" rx="1.5" fill="#3d55c9"/>
+  <rect x="20" y="30" width="24" height="2.5" rx="1.25" fill="#b9c3e8"/>
+  <rect x="20" y="36" width="20" height="2.5" rx="1.25" fill="#b9c3e8"/>
+  <circle cx="45" cy="44" r="8" fill="#20c997" stroke="#ffffff" stroke-width="3"/>
+  <path d="M41.6 44.1l2.4 2.4 4-4.4" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

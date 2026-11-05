@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>快捷面板</title>
+    <link rel="stylesheet" href="/quick-panel/panel.css" />
+  </head>
+  <body>
+    <script>
+      try {
+        if (new URLSearchParams(location.search).get('mode') === 'island') {
+          document.body.classList.add('mode-island')
+        }
+      } catch (error) {}
+    </script>
+    <div class="island" id="island">
+      <span class="island-grip" id="island-grip" title="拖动浮岛" aria-label="拖动浮岛">⠿</span>
+      <span class="island-dot" id="island-dot"></span>
+      <span class="island-text" id="island-text" title="打开面板">快捷面板</span>
+      <span class="island-time" id="island-time">--:--</span>
+      <button type="button" class="island-expand" id="island-expand" title="打开面板" aria-label="打开面板">⌃</button>
+      <button type="button" class="island-more" id="island-more" title="菜单" aria-label="菜单">⋯</button>
+    </div>
+
+    <header class="titlebar">
+      <div class="titlebar-brand">
+        <img src="/quick-panel/panel-icon.png" alt="" />
+        <span>快捷面板</span>
+      </div>
+      <div class="titlebar-actions" id="win-actions" hidden>
+        <button type="button" data-action="pin" title="置顶" aria-label="置顶">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 4h6l-1 5 3 3-4 1-1 6-2-6-4-1 4-3-1-5z" />
+          </svg>
+        </button>
+        <button type="button" data-action="minimize" title="最小化" aria-label="最小化">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <path d="M5.5 12h13" />
+          </svg>
+        </button>
+        <button type="button" data-action="close" title="收起到浮岛" aria-label="收起到浮岛">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <div class="due-banner" id="due-banner" hidden>
+        <span class="due-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6.5 9a5.5 5.5 0 0 1 11 0v4l2 3H4.5l2-3V9z" />
+            <path d="M10 19a2 2 0 0 0 4 0" />
+          </svg>
+        </span>
+        <span class="due-text" id="due-text"></span>
+        <button type="button" class="due-btn" id="due-snooze">稍后10分钟</button>
+        <button type="button" class="due-btn primary" id="due-done">完成</button>
+      </div>
+
+      <section class="clock">
+        <div class="clock-top">
+          <div class="clock-main">
+            <div class="clock-time" id="clock">--:--</div>
+            <div class="clock-meta" id="date"></div>
+          </div>
+          <div class="clock-side">
+            <div class="clock-balance" id="usage-balance" title="DeepSeek 充值余额">—</div>
+            <div class="clock-metrics" id="usage-bar">
+              <span class="clock-metric"><span class="usage-label">本次</span><span class="usage-value" id="usage-session">—</span></span>
+              <span class="clock-metric"><span class="usage-label">速度</span><span class="usage-value" id="usage-tps">—</span></span>
+              <span class="clock-metric"><span class="usage-label">30日</span><span class="usage-value" id="usage-30d">—</span></span>
+            </div>
+          </div>
+        </div>
+        <div class="sync" id="sync">连接中…</div>
+        <div class="session-label" id="session-label" hidden></div>
+      </section>
+
+      <section class="section todos">
+        <div class="section-head"><span>待办</span><span class="count" id="todo-count"></span></div>
+        <div class="capture">
+          <textarea id="todo-input" rows="1" placeholder="记录一条待办，Enter 保存…"></textarea>
+          <button type="button" class="add" id="todo-add" title="添加" aria-label="添加">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+              <path d="M8 2.5v11M2.5 8h11" />
+            </svg>
+          </button>
+        </div>
+        <div class="list" id="todo-list"></div>
+      </section>
+
+      <section class="section reminders">
+        <div class="section-head">
+          <span>提醒</span>
+          <button type="button" class="mini-add" id="reminder-add" title="添加提醒" aria-label="添加提醒">+</button>
+        </div>
+        <form class="reminder-form" id="reminder-form" hidden>
+          <input type="text" class="form-input" id="reminder-text" placeholder="提醒内容…" aria-label="提醒内容" />
+          <input type="text" class="form-input date-input" id="reminder-date" placeholder="YYYY-MM-DD" aria-label="日期" />
+          <div class="clockpick">
+            <div class="wheel" id="hour-wheel" role="spinbutton" tabindex="0" aria-label="小时">
+              <button type="button" class="wheel-step prev" tabindex="-1" aria-hidden="true">--</button>
+              <div class="wheel-current">--</div>
+              <button type="button" class="wheel-step next" tabindex="-1" aria-hidden="true">--</button>
+            </div>
+            <span class="clockpick-colon">:</span>
+            <div class="wheel" id="minute-wheel" role="spinbutton" tabindex="0" aria-label="分钟">
+              <button type="button" class="wheel-step prev" tabindex="-1" aria-hidden="true">--</button>
+              <div class="wheel-current">--</div>
+              <button type="button" class="wheel-step next" tabindex="-1" aria-hidden="true">--</button>
+            </div>
+          </div>
+          <div class="form-error" id="reminder-error" hidden></div>
+          <div class="reminder-bottom">
+            <span class="form-label">重复</span>
+            <select id="reminder-repeat" aria-label="重复">
+              <option value="none">不重复</option>
+              <option value="daily">每天</option>
+              <option value="weekdays">工作日</option>
+            </select>
+            <div class="reminder-buttons">
+              <button type="button" class="ghost" id="reminder-test">试听</button>
+              <button type="button" class="ghost" id="reminder-cancel">取消</button>
+              <button type="submit" class="primary" id="reminder-save">保存</button>
+            </div>
+          </div>
+        </form>
+        <div class="list" id="reminder-list"></div>
+        <div class="note">这里可以新增和删除提醒；精确编辑仍可在 DSH 面板里做。</div>
+      </section>
+
+      <section class="section feed-section">
+        <div class="section-head"><span>实时消息</span><span class="count" id="feed-status"></span></div>
+        <div class="feed" id="feed">
+          <div class="feed-empty" id="feed-empty">还没有消息</div>
+          <div class="feed-rows" id="feed-rows"></div>
+        </div>
+        <button type="button" class="feed-jump" id="feed-jump" hidden>最新 ↓</button>
+      </section>
+    </main>
+
+    <section class="question-card" id="question-card" aria-live="polite" hidden>
+      <div class="question-head">
+        <span class="question-kind" id="question-kind">需要选择</span>
+        <span class="question-progress" id="question-progress"></span>
+      </div>
+      <div class="question-body">
+        <div class="question-title" id="question-title"></div>
+        <div class="question-detail" id="question-detail" hidden></div>
+        <div class="question-options" id="question-options"></div>
+        <label class="question-custom" id="question-custom-row">
+          <span>其他答案</span>
+          <input id="question-custom" type="text" autocomplete="off" placeholder="可选，填写后优先使用" />
+        </label>
+      </div>
+      <div class="question-foot">
+        <div class="question-pager">
+          <button type="button" id="question-prev" aria-label="上一题">‹</button>
+          <button type="button" id="question-next" aria-label="下一题">›</button>
+        </div>
+        <button type="button" class="question-submit" id="question-submit">提交</button>
+      </div>
+    </section>
+
+    <section class="approval-card" id="approval-card" role="alertdialog" aria-labelledby="approval-title" aria-describedby="approval-reason" hidden>
+      <div class="approval-head">
+        <span class="approval-dot" aria-hidden="true"></span>
+        <span class="approval-title" id="approval-title">权限请求</span>
+        <span class="approval-tool" id="approval-tool"></span>
+      </div>
+      <div class="approval-reason" id="approval-reason"></div>
+      <div class="approval-hint">Enter 允许一次 · Esc 拒绝</div>
+      <div class="approval-actions">
+        <button type="button" class="approval-reject" id="approval-reject">拒绝</button>
+        <button type="button" class="approval-allow" id="approval-allow">允许一次</button>
+      </div>
+    </section>
+
+    <div class="done-toast" id="done-toast" hidden></div>
+
+    <div class="image-viewer" id="image-viewer" role="dialog" aria-modal="true" aria-label="图片预览" hidden>
+      <button type="button" class="image-viewer-close" id="image-viewer-close" title="关闭" aria-label="关闭">×</button>
+      <img id="image-viewer-img" alt="" />
+    </div>
+
+    <footer class="footer">
+      <div class="quick-box">
+        <textarea id="quick-input" rows="1" placeholder="输入消息，Enter 发送…"></textarea>
+        <div class="quick-actions">
+          <button type="button" class="stop" id="quick-stop" title="停止" aria-label="停止" hidden>■</button>
+          <button type="button" class="send" id="quick-send" title="发送" aria-label="发送">➤</button>
+        </div>
+      </div>
+      <div class="hint" id="quick-hint">Enter 发送 · Ctrl/Cmd+Enter 转向 · Shift+Enter 换行</div>
+    </footer>
+
+    <script src="/quick-panel/panel.js"></script>
+  </body>
+</html>

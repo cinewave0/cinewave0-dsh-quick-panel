@@ -1,0 +1,50 @@
+{
+  "name": "dsh-quick-panel",
+  "version": "1.0.0",
+  "description": "Quick panel and standalone island: todos, reminders, live session view and quick input.",
+  "type": "module",
+  "homepage": "https://github.com/cinewave0/cinewave0-dsh-quick-panel",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cinewave0/cinewave0-dsh-quick-panel.git"
+  },
+  "author": "cinewave0",
+  "engines": {
+    "dsh": ">=0.2.2-rc.1 <0.3.0"
+  },
+  "scripts": {
+    "test": "node test/host.test.mjs",
+    "test:panel": "node test/panel.test.mjs"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "panel",
+    "runtime",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  },
+  "license": "MIT"
+}
