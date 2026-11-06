@@ -265,6 +265,46 @@ main {
   opacity: 0.8;
 }
 
+.sync-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.sync-row .sync {
+  margin-top: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-usage {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  color: var(--sub);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.context-label {
+  opacity: 0.75;
+}
+
+.context-value {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.context-usage.is-high .context-value {
+  color: var(--gold);
+}
+
 .session-label {
   margin-top: 2px;
   overflow: hidden;

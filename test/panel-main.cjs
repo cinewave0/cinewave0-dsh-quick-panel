@@ -41,6 +41,7 @@ app.whenReady().then(async () => {
     session: document.getElementById('usage-session').textContent,
     tps: document.getElementById('usage-tps').textContent,
     thirty: document.getElementById('usage-30d').textContent,
+    context: document.getElementById('context-value').textContent,
     approvalVisible: !document.getElementById('approval-card').hidden,
     inputDisabled: document.getElementById('quick-input').disabled,
     imageCount: document.querySelectorAll('.feed-image img').length,
@@ -58,6 +59,7 @@ app.whenReady().then(async () => {
   assert.equal(layout.session, '88.70M')
   assert.equal(layout.tps, '45 tok/s')
   assert.equal(layout.thirty, '1.20G')
+  assert.equal(layout.context, '34%')
   assert.equal(layout.approvalVisible, true)
   assert.equal(layout.inputDisabled, true)
   assert.equal(layout.imageCount, 1)

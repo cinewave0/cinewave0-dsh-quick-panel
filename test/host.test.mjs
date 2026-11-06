@@ -134,6 +134,7 @@ test('state requires the process token and exposes usage defaults', async () => 
     const state = await harness.state()
     assert.equal(state.ok, true)
     assert.equal(state.usage.thirtyDayTokens, 0)
+    assert.equal(state.usage.contextPercent, null)
     assert.equal(state.usage.balance.status, 'unavailable')
   } finally {
     harness.cleanup()

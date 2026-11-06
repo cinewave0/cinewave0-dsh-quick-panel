@@ -108,7 +108,21 @@ function renderUsage() {
   const tps = $('usage-tps')
   const thirty = $('usage-30d')
   const balance = $('usage-balance')
-  if (!session || !tps || !thirty || !balance) return
+  const context = $('context-usage')
+  const contextValue = $('context-value')
+  if (!session || !tps || !thirty || !balance || !context || !contextValue) return
+  const drawContext = (usage) => {
+    const percent = usage && Number.isFinite(usage.contextPercent) ? usage.contextPercent : null
+    if (percent === null) {
+      contextValue.textContent = '—'
+      context.title = '等待上下文用量统计'
+      context.classList.remove('is-high')
+      return
+    }
+    contextValue.textContent = `${Math.round(percent)}%`
+    context.title = `上下文 ${percent.toFixed(1)}% · ${Number(usage.contextTokens || 0).toLocaleString('zh-CN')} / ${Number(usage.contextWindow || 0).toLocaleString('zh-CN')} tokens`
+    context.classList.toggle('is-high', percent >= 80)
+  }
   const usage = snapshot.usage
   if (!usage || typeof usage !== 'object') {
     session.textContent = '—'
@@ -118,6 +132,7 @@ function renderUsage() {
     session.title = '等待当前对话的 token 统计'
     thirty.title = '最近 30 天本机 DSH 会话 token 总量'
     balance.title = '账号余额未加载'
+    drawContext(null)
     return
   }
   const sessionKnown = usage.sessionKnown !== false
@@ -139,6 +154,7 @@ function renderUsage() {
     : usage.balance && usage.balance.status === 'unavailable'
       ? '账号余额不可用（未登录或仅使用 API Key）'
       : '充值余额'
+  drawContext(usage)
 }
 
 async function readState() {

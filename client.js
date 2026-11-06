@@ -3296,13 +3296,52 @@ window.__ModuleLoader__.load({
         typeof slot.useProjection === 'function' ? slot.useProjection : useNoProjection
       const tokenUsage = useProjection('tokenUsage')
       const stats = useProjection('sessionStats')
+      const contextPressure = useProjection('contextPressure')
       useEffect(() => {
+        const pressure =
+          contextPressure && contextPressure.val && typeof contextPressure.val === 'object'
+            ? contextPressure.val
+            : contextPressure
+        const contextWindow =
+          pressure && Number.isFinite(pressure.contextWindow) && pressure.contextWindow > 0
+            ? pressure.contextWindow
+            : 0
+        const contextTokens =
+          pressure &&
+          Number.isFinite(
+            pressure.projectedTokens ?? pressure.pressureTokens ?? pressure.surfaceTokens,
+          )
+            ? Math.max(
+                0,
+                pressure.projectedTokens ?? pressure.pressureTokens ?? pressure.surfaceTokens,
+              )
+            : 0
+        const contextPercent =
+          contextWindow > 0 && contextTokens >= 0
+            ? Math.min(100, (contextTokens / contextWindow) * 100)
+            : null
+        const contextData = {
+          ...(contextPercent === null ? {} : { contextPercent }),
+          contextTokens,
+          contextWindow,
+        }
         const totals =
           tokenUsage && tokenUsage.totals && typeof tokenUsage.totals === 'object'
             ? tokenUsage.totals
             : tokenUsage
         if (!totals || typeof totals !== 'object') {
-          store.patch({ usage: null })
+          store.patch({
+            usage: contextPercent === null
+              ? null
+              : {
+                  ...contextData,
+                  sessionKnown: false,
+                  sessionTokens: 0,
+                  sessionOutputTokens: 0,
+                  tps: 0,
+                  at: Date.now(),
+                },
+          })
           return
         }
         const count = (value) => (Number.isFinite(value) && value > 0 ? Math.floor(value) : 0)
@@ -3320,9 +3359,15 @@ window.__ModuleLoader__.load({
             ? Math.max(0, stats.decodeTokens / (stats.decodeMs / 1000))
             : 0
         store.patch({
-          usage: { sessionTokens, sessionOutputTokens, tps, at: Date.now() },
+          usage: {
+            sessionTokens,
+            sessionOutputTokens,
+            tps,
+            at: Date.now(),
+            ...contextData,
+          },
         })
-      }, [tokenUsage, stats])
+      }, [tokenUsage, stats, contextPressure])
       return null
     }
 

@@ -257,6 +257,12 @@ function normalizeUsage(raw) {
     sessionTokens: count(raw.sessionTokens),
     sessionOutputTokens: count(raw.sessionOutputTokens),
     tps: Number.isFinite(raw.tps) && raw.tps > 0 ? raw.tps : 0,
+    contextPercent:
+      Number.isFinite(raw.contextPercent) && raw.contextPercent >= 0
+        ? Math.min(100, raw.contextPercent)
+        : null,
+    contextTokens: count(raw.contextTokens),
+    contextWindow: count(raw.contextWindow),
     at: Number.isFinite(raw.at) ? raw.at : Date.now(),
   }
 }
@@ -967,6 +973,9 @@ export function apply(ctx) {
       sessionTokens: current ? current.sessionTokens : 0,
       sessionOutputTokens: current ? current.sessionOutputTokens : 0,
       tps: current ? current.tps : 0,
+      contextPercent: current && Number.isFinite(current.contextPercent) ? current.contextPercent : null,
+      contextTokens: current ? current.contextTokens : 0,
+      contextWindow: current ? current.contextWindow : 0,
       thirtyDayTokens: Math.max(0, tokens),
       thirtyDayOutputTokens: Math.max(0, outputTokens),
       sessionCount: sessions,
