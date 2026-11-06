@@ -44,6 +44,8 @@ app.whenReady().then(async () => {
     context: document.getElementById('context-value').textContent,
     workingDirectory: document.getElementById('working-dir').textContent,
     workingDirectoryHidden: document.getElementById('working-dir').hidden,
+    modelInfo: document.getElementById('model-info').textContent,
+    modelInfoHidden: document.getElementById('model-info').hidden,
     approvalVisible: !document.getElementById('approval-card').hidden,
     inputDisabled: document.getElementById('quick-input').disabled,
     imageCount: document.querySelectorAll('.feed-image img').length,
@@ -64,6 +66,8 @@ app.whenReady().then(async () => {
   assert.equal(layout.context, '34%')
   assert.equal(layout.workingDirectory, 'D:\\workspace')
   assert.equal(layout.workingDirectoryHidden, false)
+  assert.equal(layout.modelInfo, 'deepseek-flash · 高')
+  assert.equal(layout.modelInfoHidden, false)
   assert.equal(layout.approvalVisible, true)
   assert.equal(layout.inputDisabled, true)
   assert.equal(layout.imageCount, 1)

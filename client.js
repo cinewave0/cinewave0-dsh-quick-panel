@@ -3298,6 +3298,7 @@ window.__ModuleLoader__.load({
       const stats = useProjection('sessionStats')
       const contextPressure = useProjection('contextPressure')
       const workingDirectory = useProjection('workingDirectory')
+      const modelSelection = useProjection('modelSelection')
       useEffect(() => {
         const pressure =
           contextPressure && contextPressure.val && typeof contextPressure.val === 'object'
@@ -3313,6 +3314,19 @@ window.__ModuleLoader__.load({
             : directoryValue && typeof directoryValue.path === 'string'
               ? directoryValue.path
               : ''
+        const selectionValue =
+          modelSelection && modelSelection.val !== undefined ? modelSelection.val : modelSelection
+        const selection =
+          selectionValue && typeof selectionValue === 'object'
+            ? selectionValue.lastUsed || selectionValue.pending || null
+            : null
+        const model = selection && typeof selection.model === 'string' ? selection.model : ''
+        const modelProvider =
+          selection && typeof selection.provider === 'string' ? selection.provider : ''
+        const reasoningEffort =
+          selection && typeof selection.reasoningEffort === 'string'
+            ? selection.reasoningEffort
+            : ''
         const contextWindow =
           pressure && Number.isFinite(pressure.contextWindow) && pressure.contextWindow > 0
             ? pressure.contextWindow
@@ -3336,6 +3350,9 @@ window.__ModuleLoader__.load({
           contextTokens,
           contextWindow,
           workingDirectory: workingDirectoryPath,
+          model,
+          modelProvider,
+          reasoningEffort,
         }
         const totals =
           tokenUsage && tokenUsage.totals && typeof tokenUsage.totals === 'object'
@@ -3379,7 +3396,7 @@ window.__ModuleLoader__.load({
             ...contextData,
           },
         })
-      }, [tokenUsage, stats, contextPressure, workingDirectory])
+      }, [tokenUsage, stats, contextPressure, workingDirectory, modelSelection])
       return null
     }
 

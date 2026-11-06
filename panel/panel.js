@@ -111,7 +111,42 @@ function renderUsage() {
   const context = $('context-usage')
   const contextValue = $('context-value')
   const workingDir = $('working-dir')
-  if (!session || !tps || !thirty || !balance || !context || !contextValue || !workingDir) return
+  const modelInfo = $('model-info')
+  if (
+    !session ||
+    !tps ||
+    !thirty ||
+    !balance ||
+    !context ||
+    !contextValue ||
+    !workingDir ||
+    !modelInfo
+  ) return
+  const effortLabel = (value) => {
+    const raw = typeof value === 'string' ? value.trim() : ''
+    if (!raw) return ''
+    const labels = {
+      minimal: '极低',
+      low: '低',
+      medium: '中',
+      high: '高',
+      xhigh: '最高',
+      max: '最高',
+    }
+    return labels[raw.toLowerCase()] || raw
+  }
+  const drawModel = (usage) => {
+    const model = usage && typeof usage.model === 'string' ? usage.model.trim() : ''
+    const effort = usage && typeof usage.reasoningEffort === 'string' ? usage.reasoningEffort : ''
+    const label = [model, effortLabel(effort)].filter(Boolean).join(' · ')
+    modelInfo.hidden = !label || !snapshot.sessionLabel
+    modelInfo.textContent = label
+    modelInfo.title = [
+      model ? `当前模型：${model}` : '',
+      effort ? `推理深度：${effort}${effortLabel(effort) && effortLabel(effort) !== effort ? `（${effortLabel(effort)}）` : ''}` : '',
+      usage && usage.modelProvider ? `Provider：${usage.modelProvider}` : '',
+    ].filter(Boolean).join('；')
+  }
   const drawContext = (usage) => {
     const percent = usage && Number.isFinite(usage.contextPercent) ? usage.contextPercent : null
     const directory =
@@ -145,6 +180,7 @@ function renderUsage() {
     thirty.title = '最近 30 天本机 DSH 会话 token 总量'
     balance.title = '账号余额未加载'
     drawContext(null)
+    drawModel(null)
     return
   }
   const sessionKnown = usage.sessionKnown !== false
@@ -167,6 +203,7 @@ function renderUsage() {
       ? '账号余额不可用（未登录或仅使用 API Key）'
       : '充值余额'
   drawContext(usage)
+  drawModel(usage)
 }
 
 async function readState() {

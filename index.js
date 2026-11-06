@@ -265,6 +265,10 @@ function normalizeUsage(raw) {
     contextWindow: count(raw.contextWindow),
     workingDirectory:
       typeof raw.workingDirectory === 'string' ? raw.workingDirectory.slice(0, 1024) : '',
+    model: typeof raw.model === 'string' ? raw.model.slice(0, 200) : '',
+    modelProvider: typeof raw.modelProvider === 'string' ? raw.modelProvider.slice(0, 200) : '',
+    reasoningEffort:
+      typeof raw.reasoningEffort === 'string' ? raw.reasoningEffort.slice(0, 40) : '',
     at: Number.isFinite(raw.at) ? raw.at : Date.now(),
   }
 }
@@ -981,6 +985,10 @@ export function apply(ctx) {
       workingDirectory: current && typeof current.workingDirectory === 'string'
         ? current.workingDirectory
         : '',
+      model: current && typeof current.model === 'string' ? current.model : '',
+      modelProvider: current && typeof current.modelProvider === 'string' ? current.modelProvider : '',
+      reasoningEffort:
+        current && typeof current.reasoningEffort === 'string' ? current.reasoningEffort : '',
       thirtyDayTokens: Math.max(0, tokens),
       thirtyDayOutputTokens: Math.max(0, outputTokens),
       sessionCount: sessions,
