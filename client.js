@@ -3318,7 +3318,7 @@ window.__ModuleLoader__.load({
           modelSelection && modelSelection.val !== undefined ? modelSelection.val : modelSelection
         const selection =
           selectionValue && typeof selectionValue === 'object'
-            ? selectionValue.lastUsed || selectionValue.pending || null
+            ? selectionValue.next || selectionValue.pending || selectionValue.lastUsed || null
             : null
         const model = selection && typeof selection.model === 'string' ? selection.model : ''
         const modelProvider =
