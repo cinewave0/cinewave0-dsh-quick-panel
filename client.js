@@ -3297,11 +3297,22 @@ window.__ModuleLoader__.load({
       const tokenUsage = useProjection('tokenUsage')
       const stats = useProjection('sessionStats')
       const contextPressure = useProjection('contextPressure')
+      const workingDirectory = useProjection('workingDirectory')
       useEffect(() => {
         const pressure =
           contextPressure && contextPressure.val && typeof contextPressure.val === 'object'
             ? contextPressure.val
             : contextPressure
+        const directoryValue =
+          workingDirectory && workingDirectory.val !== undefined
+            ? workingDirectory.val
+            : workingDirectory
+        const workingDirectoryPath =
+          typeof directoryValue === 'string'
+            ? directoryValue
+            : directoryValue && typeof directoryValue.path === 'string'
+              ? directoryValue.path
+              : ''
         const contextWindow =
           pressure && Number.isFinite(pressure.contextWindow) && pressure.contextWindow > 0
             ? pressure.contextWindow
@@ -3324,6 +3335,7 @@ window.__ModuleLoader__.load({
           ...(contextPercent === null ? {} : { contextPercent }),
           contextTokens,
           contextWindow,
+          workingDirectory: workingDirectoryPath,
         }
         const totals =
           tokenUsage && tokenUsage.totals && typeof tokenUsage.totals === 'object'
@@ -3367,7 +3379,7 @@ window.__ModuleLoader__.load({
             ...contextData,
           },
         })
-      }, [tokenUsage, stats, contextPressure])
+      }, [tokenUsage, stats, contextPressure, workingDirectory])
       return null
     }
 

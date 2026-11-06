@@ -263,6 +263,8 @@ function normalizeUsage(raw) {
         : null,
     contextTokens: count(raw.contextTokens),
     contextWindow: count(raw.contextWindow),
+    workingDirectory:
+      typeof raw.workingDirectory === 'string' ? raw.workingDirectory.slice(0, 1024) : '',
     at: Number.isFinite(raw.at) ? raw.at : Date.now(),
   }
 }
@@ -976,6 +978,9 @@ export function apply(ctx) {
       contextPercent: current && Number.isFinite(current.contextPercent) ? current.contextPercent : null,
       contextTokens: current ? current.contextTokens : 0,
       contextWindow: current ? current.contextWindow : 0,
+      workingDirectory: current && typeof current.workingDirectory === 'string'
+        ? current.workingDirectory
+        : '',
       thirtyDayTokens: Math.max(0, tokens),
       thirtyDayOutputTokens: Math.max(0, outputTokens),
       sessionCount: sessions,

@@ -112,6 +112,7 @@ const server = createServer((request, response) => {
           contextPercent: 34.2,
           contextTokens: 358000,
           contextWindow: 1048576,
+          workingDirectory: 'D:\\workspace',
           thirtyDayTokens: 1200000000,
           thirtyDayOutputTokens: 3400000,
           sessionCount: 12,

@@ -110,9 +110,21 @@ function renderUsage() {
   const balance = $('usage-balance')
   const context = $('context-usage')
   const contextValue = $('context-value')
-  if (!session || !tps || !thirty || !balance || !context || !contextValue) return
+  const workingDir = $('working-dir')
+  if (!session || !tps || !thirty || !balance || !context || !contextValue || !workingDir) return
   const drawContext = (usage) => {
     const percent = usage && Number.isFinite(usage.contextPercent) ? usage.contextPercent : null
+    const directory =
+      usage && typeof usage.workingDirectory === 'string' ? usage.workingDirectory.trim() : ''
+    if (directory) {
+      workingDir.textContent = directory
+      workingDir.title = `工作目录：${directory}`
+      workingDir.hidden = false
+    } else {
+      workingDir.textContent = ''
+      workingDir.title = ''
+      workingDir.hidden = true
+    }
     if (percent === null) {
       contextValue.textContent = '—'
       context.title = '等待上下文用量统计'
@@ -120,7 +132,7 @@ function renderUsage() {
       return
     }
     contextValue.textContent = `${Math.round(percent)}%`
-    context.title = `上下文 ${percent.toFixed(1)}% · ${Number(usage.contextTokens || 0).toLocaleString('zh-CN')} / ${Number(usage.contextWindow || 0).toLocaleString('zh-CN')} tokens`
+    context.title = `上下文 ${percent.toFixed(1)}% · ${Number(usage.contextTokens || 0).toLocaleString('zh-CN')} / ${Number(usage.contextWindow || 0).toLocaleString('zh-CN')} tokens${directory ? `\n工作目录：${directory}` : ''}`
     context.classList.toggle('is-high', percent >= 80)
   }
   const usage = snapshot.usage

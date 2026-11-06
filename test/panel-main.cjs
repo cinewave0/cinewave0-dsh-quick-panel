@@ -42,6 +42,8 @@ app.whenReady().then(async () => {
     tps: document.getElementById('usage-tps').textContent,
     thirty: document.getElementById('usage-30d').textContent,
     context: document.getElementById('context-value').textContent,
+    workingDirectory: document.getElementById('working-dir').textContent,
+    workingDirectoryHidden: document.getElementById('working-dir').hidden,
     approvalVisible: !document.getElementById('approval-card').hidden,
     inputDisabled: document.getElementById('quick-input').disabled,
     imageCount: document.querySelectorAll('.feed-image img').length,
@@ -60,6 +62,8 @@ app.whenReady().then(async () => {
   assert.equal(layout.tps, '45 tok/s')
   assert.equal(layout.thirty, '1.20G')
   assert.equal(layout.context, '34%')
+  assert.equal(layout.workingDirectory, 'D:\\workspace')
+  assert.equal(layout.workingDirectoryHidden, false)
   assert.equal(layout.approvalVisible, true)
   assert.equal(layout.inputDisabled, true)
   assert.equal(layout.imageCount, 1)
