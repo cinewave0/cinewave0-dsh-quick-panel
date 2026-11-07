@@ -16,6 +16,7 @@
     "build": "node scripts/build-client.mjs",
     "test": "node test/host.test.mjs",
     "test:client": "node test/client-bundle.test.mjs",
+    "test:dsh": "node test/dsh-adapter.test.mjs",
     "test:panel": "node test/panel.test.mjs",
     "check": "node --check index.js && node --check client.js && node --check panel/panel.js && node --check runtime/electron-helper/main.cjs",
     "lint": "oxlint --deny-warnings src test scripts index.js panel runtime",

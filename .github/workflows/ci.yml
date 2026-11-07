@@ -51,6 +51,9 @@ jobs:
       - name: Host regression tests
         run: node test/host.test.mjs
 
+      - name: Adapter tests
+        run: node test/dsh-adapter.test.mjs
+
       - name: Package contents
         run: npm pack --dry-run
 

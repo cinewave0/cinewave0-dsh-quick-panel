@@ -1190,6 +1190,105 @@ window.__ModuleLoader__.load({
           }
         };
 
+        // src/client/dsh.js
+        function createDsh(ctx) {
+          const get = (name) => {
+            try {
+              return ctx.get(name) ?? null;
+            } catch (_error) {
+              return null;
+            }
+          };
+          const sessionOf = (sessionId) => {
+            if (!sessionId) return null;
+            const sessions = get("sessions");
+            if (!sessions || typeof sessions.binding !== "function") return null;
+            try {
+              const binding = sessions.binding(sessionId);
+              return binding && binding.session ? binding.session : null;
+            } catch (_error) {
+              return null;
+            }
+          };
+          return {
+            /** Which optional host services exist right now. Useful for diagnostics. */
+            capabilities() {
+              return {
+                sessions: get("sessions") !== null,
+                layout: get("layout") !== null,
+                schedule: this.schedule() !== null
+              };
+            },
+            schedule() {
+              const direct = get("remote.schedule");
+              if (direct) return direct;
+              const remote = get("remote");
+              return remote && remote.schedule ? remote.schedule : null;
+            },
+            openSchedule() {
+              const layout = get("layout");
+              if (!layout || typeof layout.selectPanel !== "function") return;
+              try {
+                layout.selectPanel("schedules");
+              } catch (_error) {
+              }
+            },
+            loadOlder(sessionId) {
+              const session = sessionOf(sessionId);
+              if (!session || typeof session.loadOlder !== "function") return;
+              try {
+                const result = session.loadOlder();
+                if (result && typeof result.catch === "function") result.catch(() => {
+                });
+              } catch (_error) {
+              }
+            },
+            async sendPrompt(sessionId, text, mode) {
+              const session = sessionOf(sessionId);
+              if (!session || typeof session.prompt !== "function") return { ok: false };
+              let handle = null;
+              try {
+                handle = session.beginSubmission({ mode, text, attachments: [] });
+              } catch (_error) {
+                handle = null;
+              }
+              try {
+                return await session.prompt([{ type: "text", text }], mode, void 0, handle ? handle.requestId : void 0);
+              } catch (error) {
+                if (handle && typeof handle.abandon === "function") {
+                  try {
+                    handle.abandon();
+                  } catch (_error) {
+                  }
+                }
+                return { ok: false, error };
+              }
+            },
+            async stopTurn(sessionId) {
+              const session = sessionOf(sessionId);
+              if (!session || typeof session.cancel !== "function") return { ok: false };
+              try {
+                return await session.cancel();
+              } catch (error) {
+                return { ok: false, error };
+              }
+            },
+            /**
+             * Binds the optional Question mirror. The callback still runs with `null`
+             * when the host has no `uiSession`, so callers can reset their state.
+             */
+            bindQuestions(onReady) {
+              try {
+                ctx.inject(["uiSession"], (uiCtx) => {
+                  onReady(uiCtx && uiCtx.uiSession ? uiCtx.uiSession : null);
+                });
+              } catch (_error) {
+                onReady(null);
+              }
+            }
+          };
+        }
+
         // src/client/styles.js
         var CSS = `
       .qp-island-anchor,.qp-panel-anchor{position:fixed;transform:translateX(-50%);z-index:60;pointer-events:none}
@@ -3269,93 +3368,17 @@ window.__ModuleLoader__.load({
         // src/client/main.js
         function apply(ctx) {
           hostSync.ctx = ctx;
-          try {
-            ctx.inject(["uiSession"], (uiCtx) => {
-              hostSync.uiSession = uiCtx.uiSession;
-              hostSync.bindQuestions();
-            });
-          } catch (_error) {
-          }
+          const dsh = createDsh(ctx);
+          dsh.bindQuestions((uiSession) => {
+            hostSync.uiSession = uiSession;
+            hostSync.bindQuestions();
+          });
           ctx.effect(() => ctx.locale.register(NS, { zh, en }), "quick-panel: dictionaries");
           const t = ctx.locale.bind(NS);
           ctx.effect(() => {
             void hostSync.init();
             return () => hostSync.dispose();
           }, "quick-panel: host sync");
-          const scheduleOf = () => {
-            try {
-              const direct = ctx.get("remote.schedule");
-              if (direct) return direct;
-              const remote = ctx.get("remote");
-              return remote && remote.schedule ? remote.schedule : null;
-            } catch (_error) {
-              return null;
-            }
-          };
-          const openSchedule = () => {
-            try {
-              const layout = ctx.get("layout");
-              if (layout && typeof layout.selectPanel === "function") layout.selectPanel("schedules");
-            } catch (_error) {
-            }
-          };
-          const loadOlder = () => {
-            try {
-              const sessions = ctx.get("sessions");
-              const sessionId = store.state.sessionId;
-              if (!sessions || !sessionId) return;
-              const binding = sessions.binding(sessionId);
-              const session = binding && binding.session;
-              if (session && typeof session.loadOlder === "function") {
-                const result = session.loadOlder();
-                if (result && typeof result.catch === "function") result.catch(() => {
-                });
-              }
-            } catch (_error) {
-            }
-          };
-          const sendPrompt = async (text, mode) => {
-            try {
-              const sessions = ctx.get("sessions");
-              const sessionId = store.state.sessionId;
-              if (!sessions || !sessionId) return { ok: false };
-              const binding = sessions.binding(sessionId);
-              const session = binding && binding.session;
-              if (!session) return { ok: false };
-              let handle = null;
-              try {
-                handle = session.beginSubmission({ mode, text, attachments: [] });
-              } catch (_error) {
-                handle = null;
-              }
-              try {
-                return await session.prompt(
-                  [{ type: "text", text }],
-                  mode,
-                  void 0,
-                  handle ? handle.requestId : void 0
-                );
-              } catch (error) {
-                if (handle && typeof handle.abandon === "function") handle.abandon();
-                return { ok: false, error };
-              }
-            } catch (error) {
-              return { ok: false, error };
-            }
-          };
-          const stopTurn = async () => {
-            try {
-              const sessions = ctx.get("sessions");
-              const sessionId = store.state.sessionId;
-              if (!sessions || !sessionId) return { ok: false };
-              const binding = sessions.binding(sessionId);
-              const session = binding && binding.session;
-              if (!session || typeof session.cancel !== "function") return { ok: false };
-              return await session.cancel();
-            } catch (error) {
-              return { ok: false, error };
-            }
-          };
           ctx.slots.inject(
             "shell.overlay",
             () => ctx.slots.register(
@@ -3363,11 +3386,11 @@ window.__ModuleLoader__.load({
               (props) => h(Overlay, {
                 ...props,
                 t,
-                schedule: scheduleOf,
-                openSchedule,
-                loadOlder,
-                sendPrompt,
-                stopTurn
+                schedule: () => dsh.schedule(),
+                openSchedule: () => dsh.openSchedule(),
+                loadOlder: () => dsh.loadOlder(store.state.sessionId),
+                sendPrompt: (text, mode) => dsh.sendPrompt(store.state.sessionId, text, mode),
+                stopTurn: () => dsh.stopTurn(store.state.sessionId)
               })
             )
           );

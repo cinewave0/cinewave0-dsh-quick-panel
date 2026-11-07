@@ -63,6 +63,7 @@ jobs:
         run: |
           node test/client-bundle.test.mjs
           node test/source-imports.test.mjs
+          node test/dsh-adapter.test.mjs
           node test/host.test.mjs
 
       - name: Pack
