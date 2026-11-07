@@ -27,8 +27,8 @@
       "icon": "../icon.svg",
       "versions": [
         {
-          "version": "1.0.2",
-          "publishTimestamp": 1793949915,
+          "version": "1.0.3",
+          "publishTimestamp": 1794082510,
           "source": {
             "type": "npm"
           },
