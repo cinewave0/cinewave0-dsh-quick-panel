@@ -150,6 +150,14 @@
         </div>
         <button type="button" class="feed-jump" id="feed-jump" hidden>最新 ↓</button>
       </section>
+
+      <section class="section approval-lock">
+        <label class="lock-line" for="approval-lock">
+          <input type="checkbox" id="approval-lock">
+          <span>审批锁定在外部面板</span>
+        </label>
+        <div class="lock-hint" id="approval-lock-hint">勾选后，即使 DSH 页面可见也由这里接管；取消勾选恢复 DSH 内建审批。</div>
+      </section>
     </main>
 
     <section class="question-card" id="question-card" aria-live="polite" hidden>

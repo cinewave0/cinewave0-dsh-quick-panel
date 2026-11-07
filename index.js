@@ -734,6 +734,9 @@ export function apply(ctx) {
       companionSpawnedAt > 0 &&
       Date.now() - companionSpawnedAt < 15000)
 
+  /** With the lock on, the companion owns approvals even while DSH is visible. */
+  const approvalLocked = () => Boolean(state.settings && state.settings.lockApproval === true)
+
   /**
    * Claim an interactive approval while the companion can present it. If the
    * companion is closed or goes away, delegate to DSH's built-in approval UI
@@ -745,9 +748,11 @@ export function apply(ctx) {
     if (!companionIsOpen() || !sessionId || sessionId !== state.activeSessionId) {
       return next()
     }
-    // DSH's own card stays authoritative whenever its page is visible; the
-    // external panel only takes over while DSH is hidden/minimized.
-    if (live.dshVisible !== false) return next()
+    // DSH's own card stays authoritative whenever its page is visible, unless
+    // the user locked approvals to the companion; the external panel then
+    // takes over even while DSH is visible.
+    const locked = approvalLocked()
+    if (!locked && live.dshVisible !== false) return next()
     if (pendingApproval) return next()
     const signal = request.signal
     if (signal && signal.aborted) return 'cancelled'
@@ -761,13 +766,8 @@ export function apply(ctx) {
     }
     return new Promise((resolve) => {
       let settled = false
-      let watchdog = 0
       let monitor = 0
       const clear = () => {
-        if (watchdog) {
-          clearTimeout(watchdog)
-          watchdog = 0
-        }
         if (monitor) {
           clearInterval(monitor)
           monitor = 0
@@ -782,28 +782,28 @@ export function apply(ctx) {
         clear()
         resolve(outcome)
       }
-      const onAbort = () => settle('cancelled')
-      if (signal) signal.addEventListener('abort', onAbort, { once: true })
-      // Closing or losing the companion hands the request back to the DSH UI.
-      monitor = setInterval(() => {
-        if (settled) return
-        if (!companionIsOpen() || live.dshVisible === true) {
-          settled = true
-          clear()
-          resolve(delegate())
-        }
-      }, 2000)
-      // Nobody answered for a long time; let the in-window card take over.
-      watchdog = setTimeout(() => {
+      const handBack = () => {
         if (settled) return
         settled = true
         clear()
         resolve(delegate())
-      }, 120000)
+      }
+      const onAbort = () => settle('cancelled')
+      if (signal) signal.addEventListener('abort', onAbort, { once: true })
+      // Closing or losing the companion hands the request back to the DSH UI.
+      // There is no time-based fallback: a lock means "wait for the panel",
+      // and the heartbeat is the only thing that can take it away.
+      monitor = setInterval(() => {
+        if (settled) return
+        if (!companionIsOpen() || (!approvalLocked() && live.dshVisible === true)) {
+          handBack()
+        }
+      }, 2000)
       pendingApproval = {
         key,
         sessionId,
         answer: (outcome) => settle(outcome),
+        handBack,
       }
       live.approval = normalizeApproval({
         key,
@@ -814,7 +814,7 @@ export function apply(ctx) {
         sessionId,
         since: Date.now(),
       })
-      note(`approval claimed key=${key} tool=${String(request.toolName || '')}`)
+      note(`approval claimed key=${key} tool=${String(request.toolName || '')} lock=${approvalLocked() ? 'on' : 'off'}`)
     })
   }
 
@@ -1208,6 +1208,35 @@ export function apply(ctx) {
       if (body.type === 'companion-ping') {
         companionBeat = Date.now()
         return sendJson(response, 200, { ok: true })
+      }
+      if (body.type === 'set-approval-lock') {
+        if (typeof body.enabled !== 'boolean') {
+          return sendJson(response, 400, { ok: false, error: 'invalid-enabled' })
+        }
+        state = {
+          ...state,
+          rev: state.rev + 1,
+          settings: { ...state.settings, lockApproval: body.enabled },
+        }
+        saveState(state)
+        let handedBack = false
+        if (
+          !body.enabled &&
+          pendingApproval &&
+          live.dshVisible === true &&
+          companionIsOpen() &&
+          typeof pendingApproval.handBack === 'function'
+        ) {
+          pendingApproval.handBack()
+          handedBack = true
+        }
+        note(`approval lock=${body.enabled ? 'on' : 'off'}${handedBack ? ' handed-back' : ''}`)
+        return sendJson(response, 200, {
+          ok: true,
+          rev: state.rev,
+          settings: state.settings,
+          handedBack,
+        })
       }
       if (body.type === 'feed-older') {
         ensureHostFeed()

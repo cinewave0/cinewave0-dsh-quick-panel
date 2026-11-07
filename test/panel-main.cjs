@@ -47,6 +47,8 @@ app.whenReady().then(async () => {
     modelInfo: document.getElementById('model-info').textContent,
     modelInfoHidden: document.getElementById('model-info').hidden,
     approvalVisible: !document.getElementById('approval-card').hidden,
+    lockChecked: document.getElementById('approval-lock').checked,
+    lockHint: document.getElementById('approval-lock-hint').textContent,
     inputDisabled: document.getElementById('quick-input').disabled,
     imageCount: document.querySelectorAll('.feed-image img').length,
     imageWidth: document.querySelector('.feed-image img')?.naturalWidth ?? 0,
@@ -69,11 +71,25 @@ app.whenReady().then(async () => {
   assert.equal(layout.modelInfo, 'deepseek-flash · 高')
   assert.equal(layout.modelInfoHidden, false)
   assert.equal(layout.approvalVisible, true)
+  assert.equal(layout.lockChecked, false)
+  assert.match(layout.lockHint, /勾选后/)
   assert.equal(layout.inputDisabled, true)
   assert.equal(layout.imageCount, 1)
   assert.ok(layout.imageWidth > 0, 'thumbnail should load')
   assert.deepEqual(layout.todoIndices, ['1.', '2.'])
   assert.deepEqual(layout.reminderIndices, ['1.', '2.'])
+
+  await win.webContents.executeJavaScript(`document.getElementById('approval-lock').click()`)
+  await delay(900)
+  const lockRequests = await fetchJson('/test/lock')
+  assert.equal(lockRequests.length, 1)
+  assert.equal(lockRequests[0], true)
+  const lockedUi = await win.webContents.executeJavaScript(`({
+    checked: document.getElementById('approval-lock').checked,
+    hint: document.getElementById('approval-lock-hint').textContent,
+  })`)
+  assert.equal(lockedUi.checked, true)
+  assert.match(lockedUi.hint, /已锁定/)
 
   await win.webContents.executeJavaScript(
     `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`,

@@ -21,6 +21,7 @@ let snapshot = {
   question: null,
   questionAnswer: null,
   usage: null,
+  settings: {},
   rev: -1,
 }
 let busy = false
@@ -34,6 +35,7 @@ let questionDraft = null
 let questionIndex = 0
 let questionBusy = false
 let approvalWaitTimer = 0
+let lockBusy = false
 let lastRunning = false
 let runStartedAt = 0
 let doneText = ''
@@ -697,6 +699,44 @@ function wireFeed() {
   })
 }
 
+/* --------------------------------------------------------- approval lock */
+
+function renderApprovalLock() {
+  const box = $('approval-lock')
+  if (!box) return
+  const locked = Boolean(snapshot.settings && snapshot.settings.lockApproval === true)
+  if (!lockBusy) box.checked = locked
+  const hint = $('approval-lock-hint')
+  if (hint) {
+    hint.textContent = locked
+      ? '已锁定：DSH 页面可见时，审批也只在这里显示。'
+      : '勾选后，即使 DSH 页面可见也由这里接管；取消勾选恢复 DSH 内建审批。'
+  }
+}
+
+function wireApprovalLock() {
+  const box = $('approval-lock')
+  if (!box) return
+  box.addEventListener('change', async () => {
+    const enabled = box.checked
+    lockBusy = true
+    try {
+      const result = await post({ type: 'set-approval-lock', enabled })
+      const settings =
+        result && result.settings && typeof result.settings === 'object'
+          ? result.settings
+          : { ...snapshot.settings, lockApproval: enabled }
+      snapshot = { ...snapshot, settings }
+    } catch (_error) {
+      box.checked = !enabled
+      setSync('审批锁定保存失败')
+    } finally {
+      lockBusy = false
+      renderApprovalLock()
+    }
+  })
+}
+
 /* ------------------------------------------------------------ approval */
 
 function approvalSignatureOf(approval) {
@@ -1116,6 +1156,7 @@ async function refresh(force) {
       sessionLabel: typeof next.sessionLabel === 'string' ? next.sessionLabel : '',
       activeSessionId: typeof next.activeSessionId === 'string' ? next.activeSessionId : null,
     }
+    renderApprovalLock()
     if (snapshot.running && !lastRunning) {
       runStartedAt = Date.now()
       doneUntil = 0
@@ -1693,6 +1734,7 @@ function boot() {
   wireComposer()
   wireFeed()
   wireApproval()
+  wireApprovalLock()
   wireQuestion()
   wireImageViewer()
   wireWindowControls()

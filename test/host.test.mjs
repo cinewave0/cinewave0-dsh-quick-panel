@@ -254,6 +254,78 @@ test('approval claim, allow/reject, stale and delegation', async () => {
   }
 })
 
+test('approval lock keeps the companion in charge while DSH is visible', async () => {
+  const harness = makeHarness('approval-lock', { activeSessionId: 'session-test' })
+  try {
+    await harness.post({ type: 'companion-ping' })
+    await harness.post({ dshVisible: true })
+    const listener = harness.listeners.get('approval/request')
+    let nextCalls = 0
+    const next = async () => {
+      nextCalls += 1
+      return 'builtin'
+    }
+    const request = (overrides = {}) => ({
+      agent: { session: { id: 'session-test' } },
+      toolName: 'pwsh',
+      reason: '需要管理员权限',
+      signal: new AbortController().signal,
+      ...overrides,
+    })
+
+    // Lock off: a visible DSH keeps its own card.
+    assert.equal(await listener(request(), next), 'builtin')
+
+    const lock = await harness.post({ type: 'set-approval-lock', enabled: true })
+    assert.equal(lock.status, 200)
+    assert.equal((await harness.state()).settings.lockApproval, true)
+
+    // Locked: the companion claims even though DSH is visible.
+    const pending = listener(request(), next)
+    const state = await harness.state()
+    assert.match(state.approval.key, /^approval:/)
+    assert.equal(nextCalls, 1)
+
+    // Unlocking hands the pending request back to DSH immediately.
+    const unlock = await harness.post({ type: 'set-approval-lock', enabled: false })
+    assert.equal(unlock.status, 200)
+    assert.equal(unlock.json.handedBack, true)
+    assert.equal(await pending, 'builtin')
+    assert.equal((await harness.state()).approval, null)
+    assert.equal((await harness.state()).settings.lockApproval, false)
+  } finally {
+    harness.cleanup()
+  }
+})
+
+test('approval lock does not claim without a live companion heartbeat', async () => {
+  const harness = makeHarness('approval-lock-nocompanion', { activeSessionId: 'session-test' })
+  try {
+    await harness.post({ dshVisible: true })
+    await harness.post({ type: 'set-approval-lock', enabled: true })
+    const listener = harness.listeners.get('approval/request')
+    let nextCalls = 0
+    const next = async () => {
+      nextCalls += 1
+      return 'builtin'
+    }
+    const result = await listener(
+      {
+        agent: { session: { id: 'session-test' } },
+        toolName: 'pwsh',
+        reason: '需要权限',
+        signal: new AbortController().signal,
+      },
+      next,
+    )
+    assert.equal(result, 'builtin')
+    assert.equal(nextCalls, 1)
+    assert.equal((await harness.state()).approval, null)
+  } finally {
+    harness.cleanup()
+  }
+})
+
 test('usage aggregation, current-session fallback and balance cache', async () => {
   const now = Date.now()
   let balanceCalls = 0

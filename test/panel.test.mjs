@@ -17,6 +17,8 @@ const js = readFileSync(join(panelRoot, 'panel.js'))
 const icon = readFileSync(join(panelRoot, 'icon.png'))
 
 let approvalNo = 1
+let lockEnabled = false
+const lockRequests = []
 let approval = {
   key: `approval:${approvalNo}`,
   toolName: 'bash',
@@ -70,7 +72,7 @@ const server = createServer((request, response) => {
           { id: 'r1', text: '第一个提醒', at: Date.now() + 3600000, repeat: 'none', firedFor: null },
           { id: 'r2', text: '第二个提醒', at: Date.now() + 7200000, repeat: 'none', firedFor: null },
         ],
-        settings: {},
+        settings: { lockApproval: lockEnabled },
         activeSessionId: 'session-test',
         sessionLabel: '测试对话 · session',
         companionOpen: true,
@@ -132,6 +134,11 @@ const server = createServer((request, response) => {
     response.end(JSON.stringify(answers))
     return
   }
+  if (url.pathname === '/test/lock') {
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.end(JSON.stringify(lockRequests))
+    return
+  }
   if (url.pathname === '/test/approval') {
     approvalNo += 1
     approval = {
@@ -188,6 +195,13 @@ const server = createServer((request, response) => {
         }
         if (value && value.type === 'question-answer') {
           questionAnswers.push(value)
+        }
+        if (value && value.type === 'set-approval-lock') {
+          lockEnabled = Boolean(value.enabled)
+          lockRequests.push(lockEnabled)
+          response.writeHead(200, { 'content-type': 'application/json' })
+          response.end(JSON.stringify({ ok: true, settings: { lockApproval: lockEnabled } }))
+          return
         }
       } catch (_error) {
         /* ignore */
