@@ -23,6 +23,12 @@ jobs:
       - name: Install
         run: npm install --no-audit --no-fund
 
+      - name: Build client bundle
+        run: node scripts/build-client.mjs
+
+      - name: Client bundle is current
+        run: git diff --exit-code -- client.js
+
       - name: Syntax check
         run: |
           node --check index.js
@@ -32,6 +38,9 @@ jobs:
           node --check scripts/backup.mjs
           node --check scripts/sync-github.mjs
           node --check scripts/make-market-index.mjs
+
+      - name: Client bundle envelope
+        run: node test/client-bundle.test.mjs
 
       - name: Host regression tests
         run: node test/host.test.mjs

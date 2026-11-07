@@ -1,0 +1,3762 @@
+import { React, h, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from './runtime.js'
+
+    const NS = 'quickPanel'
+    const MODE_KEY = 'dsh.quick-panel.m0'
+    const POS_KEY = 'dsh.quick-panel.m0.pos'
+    const TODO_KEY = 'dsh.quick-panel.m1.todos'
+    const REMINDER_KEY = 'dsh.quick-panel.m2.reminders'
+    const HOST_ROUTE = '/quick-panel'
+    const MODES = ['panel', 'island', 'hidden']
+    /**
+     * Optional integration with DSH's built-in schedule page. It is off on
+     * purpose: the local reminder is the product feature, and the built-in
+     * Automation tasks page is not part of this plugin's UI. Turn this on only
+     * when the user explicitly asks for agent-delivered reminders.
+     */
+    const DSH_TASKS_ENABLED = false
+
+    const zh = {
+      panel: '快捷面板',
+      open: '打开快捷面板',
+      collapse: '收起为浮岛',
+      dragHint: '拖动可移动',
+      todos: '待办',
+      capturePlaceholder: '记录一条待办，Enter 保存…',
+      add: '添加',
+      emptyTitle: '还没有待办',
+      emptyHint: '直接输入，或粘贴多行文本，一次拆成多条。',
+      handoff: '交给 DSH（填入输入框）',
+      handed: '已填入',
+      markDone: '标记完成',
+      markUndone: '取消完成',
+      editHint: '双击编辑',
+      copy: '复制',
+      delete: '删除',
+      copied: '已复制',
+      copyFailed: '复制失败',
+      deleted: '已删除',
+      needSession: '请先打开一个会话',
+      insertFailed: '输入框当前不可编辑',
+      inserted: '已填入输入框，按 Enter 发送',
+      connected: '对话已连接',
+      noSessionShort: '未选择对话',
+      handoffHint: '勾选左侧方框 = 填入当前对话输入框，不会自动发送。',
+      islandIdle: '快捷面板',
+      islandConnected: '对话已连接',
+      reminders: '提醒',
+      addReminder: '添加提醒',
+      reminderPlaceholder: '提醒内容（可留空）',
+      reminderDefault: '时间到了',
+      alsoSchedule: '同时创建 DSH 定时任务',
+      alsoScheduleHint: '到点会向当前对话发送一条消息',
+      scheduleCreated: '已创建 DSH 定时任务',
+      scheduleFailed: 'DSH 任务创建失败（本地提醒仍保留）',
+      dshTaskTag: 'DSH',
+      openSchedule: '打开 Automation tasks',
+      save: '保存',
+      testSound: '试听',
+      cancel: '取消',
+      repeat: '重复',
+      repeatNone: '一次',
+      repeatDaily: '每天',
+      repeatWeekdays: '工作日',
+      when: '时间',
+      noReminders: '还没有提醒',
+      reminderAdded: '已添加提醒',
+      reminderDue: '提醒',
+      snooze10: '稍后 10 分钟',
+      markReminderDone: '完成',
+      deleteReminder: '删除提醒',
+      today: '今天',
+      tomorrow: '明天',
+      notifyReminderTitle: '快捷面板提醒',
+      turnDone: '本轮已完成',
+      turnDoneBody: '用时 {time}',
+      invalidTime: '请选择将来的时间',
+      live: '实时消息',
+      liveHint: 'M3 加入实时消息、推理与全量历史。',
+      you: '你',
+      steering: '转向',
+      reasoning: '推理',
+      tool: '工具',
+      toolDone: '完成',
+      toolFailed: '失败',
+      interrupted: '已停止',
+      imageOnly: '[图片]',
+      nonText: '[非文本内容]',
+      feedNoSession: '打开一个对话后同步消息。',
+      feedEmpty: '还没有消息。',
+      running: '运行中',
+      idle: '空闲',
+      loadingOlder: '加载更早…',
+      scrollOlder: '上滚加载更早',
+      oldest: '已到最早',
+      streaming: '生成中',
+      thinking: '思考中…',
+      send: '发送',
+      stop: '停止',
+      sent: '已发送',
+      steered: '已转向',
+      sendFailed: '发送失败，内容已恢复',
+      stopped: '已停止',
+      stopFailed: '停止失败',
+      cannotSend: '当前不可发送',
+      inputPlaceholder: '输入消息，Enter 发送…',
+      inputNoSession: '打开一个对话后可发送',
+      hintIdle: 'Enter 发送 · Shift+Enter 换行',
+      hintRunning: 'Enter 排队 · Ctrl/Cmd+Enter 转向',
+      jumpLatest: '最新 ↓',
+      openWindow: '打开独立面板',
+      windowOpened: '独立面板已打开',
+      windowFailed: '打不开独立面板（Host 未连接）',
+      disabledInput: 'M4 将在此快速输入…',
+      version: 'v0.1.0 · M6',
+      esc: 'Esc 收起',
+      handoffTemplate: '读取这条待办并等待我的指令：\n- {text}\n\n（来自快捷面板 · {time}）',
+    }
+
+    const en = {
+      panel: 'Quick panel',
+      open: 'Open quick panel',
+      collapse: 'Collapse to island',
+      dragHint: 'Drag to move',
+      todos: 'Notes',
+      capturePlaceholder: 'Add a note, Enter to save…',
+      add: 'Add',
+      emptyTitle: 'No notes yet',
+      emptyHint: 'Type one, or paste multiple lines to split them into notes.',
+      handoff: 'Hand to DSH (fill the composer)',
+      handed: 'Filled',
+      markDone: 'Mark done',
+      markUndone: 'Mark not done',
+      editHint: 'Double-click to edit',
+      copy: 'Copy',
+      delete: 'Delete',
+      copied: 'Copied',
+      copyFailed: 'Copy failed',
+      deleted: 'Deleted',
+      needSession: 'Open a conversation first',
+      insertFailed: 'The composer is not editable right now',
+      inserted: 'Filled into the composer — press Enter to send',
+      connected: 'Conversation connected',
+      noSessionShort: 'No conversation selected',
+      handoffHint: 'Checking the left box fills the current composer; it never auto-sends.',
+      islandIdle: 'Quick panel',
+      islandConnected: 'Conversation connected',
+      reminders: 'Reminders',
+      addReminder: 'Add reminder',
+      reminderPlaceholder: 'Reminder text (optional)',
+      reminderDefault: "Time's up",
+      alsoSchedule: 'Also create a DSH schedule task',
+      alsoScheduleHint: 'Delivers a message to this conversation when due',
+      scheduleCreated: 'DSH task created',
+      scheduleFailed: 'DSH task failed (local reminder kept)',
+      dshTaskTag: 'DSH',
+      openSchedule: 'Open Automation tasks',
+      save: 'Save',
+      testSound: 'Test sound',
+      cancel: 'Cancel',
+      repeat: 'Repeat',
+      repeatNone: 'Once',
+      repeatDaily: 'Daily',
+      repeatWeekdays: 'Weekdays',
+      when: 'Time',
+      noReminders: 'No reminders yet',
+      reminderAdded: 'Reminder added',
+      reminderDue: 'Reminder',
+      snooze10: 'Snooze 10 min',
+      markReminderDone: 'Done',
+      deleteReminder: 'Delete reminder',
+      today: 'Today',
+      tomorrow: 'Tomorrow',
+      notifyReminderTitle: 'Quick panel reminder',
+      turnDone: 'Turn finished',
+      turnDoneBody: 'Took {time}',
+      invalidTime: 'Pick a future time',
+      live: 'Live messages',
+      liveHint: 'M3 adds the live feed, reasoning and full history.',
+      you: 'You',
+      steering: 'Steering',
+      reasoning: 'Reasoning',
+      tool: 'Tool',
+      toolDone: 'Done',
+      toolFailed: 'Failed',
+      interrupted: 'Stopped',
+      imageOnly: '[Image]',
+      nonText: '[Non-text content]',
+      feedNoSession: 'Open a conversation to sync messages.',
+      feedEmpty: 'No messages yet.',
+      running: 'Running',
+      idle: 'Idle',
+      loadingOlder: 'Loading older…',
+      scrollOlder: 'Scroll up for older messages',
+      oldest: 'Oldest loaded',
+      streaming: 'Streaming',
+      thinking: 'Thinking…',
+      send: 'Send',
+      stop: 'Stop',
+      sent: 'Sent',
+      steered: 'Steered',
+      sendFailed: 'Send failed; your text is back',
+      stopped: 'Stopped',
+      stopFailed: 'Stop failed',
+      cannotSend: 'Sending is unavailable',
+      inputPlaceholder: 'Type a message, Enter to send…',
+      inputNoSession: 'Open a conversation to send',
+      hintIdle: 'Enter to send · Shift+Enter for a new line',
+      hintRunning: 'Enter to queue · Ctrl/Cmd+Enter to steer',
+      jumpLatest: 'Latest ↓',
+      openWindow: 'Open standalone panel',
+      windowOpened: 'Standalone panel opened',
+      windowFailed: 'Could not open the standalone panel (Host offline)',
+      disabledInput: 'Quick input arrives in M4…',
+      version: 'v0.1.0 · M6',
+      esc: 'Esc to collapse',
+      handoffTemplate: 'Read this note and wait for my instruction:\n- {text}\n\n(from the quick panel · {time})',
+    }
+
+    const store = {
+      state: Object.freeze({
+        mode: readMode(),
+        sessionId: null,
+        bridgeReady: false,
+        running: false,
+        feed: [],
+        partial: null,
+        latest: '',
+        loadingOlder: false,
+        hasMore: false,
+        canPrompt: false,
+        canCancel: false,
+        companionOpen: false,
+        usage: null,
+      }),
+      inputActions: null,
+      listeners: new Set(),
+      subscribe: (listener) => {
+        store.listeners.add(listener)
+        return () => {
+          store.listeners.delete(listener)
+        }
+      },
+      getSnapshot: () => store.state,
+      patch(next) {
+        let changed = false
+        for (const key of Object.keys(next)) {
+          if (store.state[key] !== next[key]) changed = true
+        }
+        if (!changed) return
+        store.state = Object.freeze({ ...store.state, ...next })
+        for (const listener of Array.from(store.listeners)) listener()
+      },
+    }
+
+    function readMode() {
+      try {
+        const raw = window.localStorage.getItem(MODE_KEY)
+        if (!raw) return 'island'
+        const parsed = JSON.parse(raw)
+        if (parsed && parsed.mode === 'drawer') return 'panel'
+        if (parsed && parsed.mode === 'hidden') return 'island'
+        return parsed && MODES.includes(parsed.mode) ? parsed.mode : 'island'
+      } catch (_error) {
+        return 'island'
+      }
+    }
+
+    function writeMode(mode) {
+      try {
+        window.localStorage.setItem(MODE_KEY, JSON.stringify({ mode }))
+      } catch (_error) {
+        /* localStorage can be unavailable; runtime state still works. */
+      }
+    }
+
+    function setMode(mode) {
+      if (!MODES.includes(mode)) return
+      store.patch({ mode })
+      writeMode(mode)
+    }
+
+    const openPanel = () => {
+      maybeEnsureNotifyPermission()
+      ensureAudio()
+      setMode('panel')
+    }
+    const collapsePanel = () => setMode('island')
+
+    function togglePanel() {
+      ensureAudio()
+      setMode(store.state.mode === 'panel' ? 'island' : 'panel')
+    }
+
+    function loadAnchor() {
+      const fallback = { cx: window.innerWidth / 2, top: 8 }
+      try {
+        const raw = window.localStorage.getItem(POS_KEY)
+        if (!raw) return fallback
+        const parsed = JSON.parse(raw)
+        if (Number.isFinite(parsed.cx) && Number.isFinite(parsed.top)) {
+          return { cx: parsed.cx, top: parsed.top }
+        }
+      } catch (_error) {
+        /* fall through to the default anchor */
+      }
+      return fallback
+    }
+
+    function saveAnchor(anchor) {
+      try {
+        window.localStorage.setItem(POS_KEY, JSON.stringify(anchor))
+      } catch (_error) {
+        /* position persistence is best effort */
+      }
+    }
+
+    function clampRange(value, min, max) {
+      if (max < min) return (min + max) / 2
+      return Math.min(Math.max(value, min), max)
+    }
+
+    // ------------------------------------------------------------- todos
+
+    function newId() {
+      try {
+        return window.crypto.randomUUID()
+      } catch (_error) {
+        return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+      }
+    }
+
+    function splitLines(raw) {
+      return String(raw)
+        .split(/\r?\n/)
+        .map((line) =>
+          line
+            .replace(/^\s*(?:[-*+]\s+)?(?:\[[ xX]\]\s*)?(?:\d+[.)]\s+)?/, '')
+            .trim(),
+        )
+        .filter(Boolean)
+    }
+
+    function loadTodos() {
+      try {
+        const raw = window.localStorage.getItem(TODO_KEY)
+        if (!raw) return []
+        const parsed = JSON.parse(raw)
+        if (!Array.isArray(parsed)) return []
+        return parsed
+          .filter((item) => item && typeof item.text === 'string' && item.text.trim())
+          .map((item, index) => ({
+            id: typeof item.id === 'string' && item.id ? item.id : newId(),
+            text: item.text.trim(),
+            done: Boolean(item.done),
+            handedOff: Boolean(item.handedOff),
+            createdAt: Number.isFinite(item.createdAt) ? item.createdAt : Date.now() + index,
+          }))
+      } catch (_error) {
+        return []
+      }
+    }
+
+    const todoStore = {
+      items: loadTodos(),
+      listeners: new Set(),
+      subscribe(listener) {
+        todoStore.listeners.add(listener)
+        return () => {
+          todoStore.listeners.delete(listener)
+        }
+      },
+      getSnapshot: () => todoStore.items,
+      commit(items) {
+        todoStore.items = items
+        try {
+          window.localStorage.setItem(TODO_KEY, JSON.stringify(items))
+        } catch (_error) {
+          /* persistence is best effort */
+        }
+        for (const listener of Array.from(todoStore.listeners)) listener()
+        hostSync.schedule()
+      },
+      addMany(texts) {
+        const lines = texts.map((text) => text.trim()).filter(Boolean)
+        if (!lines.length) return
+        const now = Date.now()
+        const fresh = lines.map((text, index) => ({
+          id: newId(),
+          text,
+          done: false,
+          handedOff: false,
+          createdAt: now + index,
+        }))
+        todoStore.commit([...fresh, ...todoStore.items])
+      },
+      update(id, patch) {
+        todoStore.commit(todoStore.items.map((item) => (item.id === id ? { ...item, ...patch } : item)))
+      },
+      remove(id) {
+        todoStore.commit(todoStore.items.filter((item) => item.id !== id))
+      },
+    }
+
+    // ----------------------------------------------------------- reminders
+
+    function pad2(value) {
+      return String(value).padStart(2, '0')
+    }
+
+    function defaultWhenParts(timestamp) {
+      const date = new Date(timestamp)
+      return {
+        date: `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`,
+        hour: pad2(date.getHours()),
+        minute: pad2(date.getMinutes()),
+      }
+    }
+
+    function formatWhen(t, at, now) {
+      const date = new Date(at)
+      const current = new Date(now)
+      const time = `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+      if (date.toDateString() === current.toDateString()) return `${t('today')} ${time}`
+      const tomorrow = new Date(current)
+      tomorrow.setDate(current.getDate() + 1)
+      if (date.toDateString() === tomorrow.toDateString()) return `${t('tomorrow')} ${time}`
+      return `${date.getMonth() + 1}-${date.getDate()} ${time}`
+    }
+
+    function computeAt(repeat, dateValue, hourValue, minuteValue, now) {
+      const hours = Number(hourValue)
+      const minutes = Number(minuteValue)
+      if (!Number.isInteger(hours) || hours < 0 || hours > 23) return null
+      if (!Number.isInteger(minutes) || minutes < 0 || minutes > 59) return null
+      if (repeat === 'none') {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateValue || ''))
+        if (!match) return null
+        const at = new Date(
+          Number(match[1]),
+          Number(match[2]) - 1,
+          Number(match[3]),
+          hours,
+          minutes,
+          0,
+          0,
+        ).getTime()
+        if (!Number.isFinite(at) || at <= now) return null
+        return at
+      }
+      const date = new Date(now)
+      date.setHours(hours, minutes, 0, 0)
+      if (date.getTime() <= now) date.setDate(date.getDate() + 1)
+      if (repeat === 'weekdays') {
+        while (date.getDay() === 0 || date.getDay() === 6) date.setDate(date.getDate() + 1)
+      }
+      return date.getTime()
+    }
+
+    function nextOccurrence(item, now) {
+      if (item.repeat === 'none') return null
+      const previous = new Date(item.at)
+      const spec = item.timeOfDay || `${pad2(previous.getHours())}:${pad2(previous.getMinutes())}`
+      const match = /^(\d{2}):(\d{2})$/.exec(spec)
+      const hours = match ? Number(match[1]) : previous.getHours()
+      const minutes = match ? Number(match[2]) : previous.getMinutes()
+      const next = new Date(now)
+      next.setHours(hours, minutes, 0, 0)
+      if (next.getTime() <= now) next.setDate(next.getDate() + 1)
+      if (item.repeat === 'weekdays') {
+        while (next.getDay() === 0 || next.getDay() === 6) next.setDate(next.getDate() + 1)
+      }
+      return next.getTime()
+    }
+
+    function loadReminders() {
+      try {
+        const raw = window.localStorage.getItem(REMINDER_KEY)
+        if (!raw) return []
+        const parsed = JSON.parse(raw)
+        if (!Array.isArray(parsed)) return []
+        return parsed
+          .filter((item) => item && typeof item.text === 'string' && Number.isFinite(item.at))
+          .map((item, index) => ({
+            id: typeof item.id === 'string' && item.id ? item.id : newId(),
+            text: item.text.trim(),
+            at: item.at,
+            repeat: ['none', 'daily', 'weekdays'].includes(item.repeat) ? item.repeat : 'none',
+            timeOfDay: typeof item.timeOfDay === 'string' ? item.timeOfDay : null,
+            dshTask: Boolean(item.dshTask),
+            firedFor: Number.isFinite(item.firedFor) ? item.firedFor : null,
+            createdAt: Number.isFinite(item.createdAt) ? item.createdAt : Date.now() + index,
+          }))
+      } catch (_error) {
+        return []
+      }
+    }
+
+    const reminderStore = {
+      items: loadReminders(),
+      listeners: new Set(),
+      subscribe(listener) {
+        reminderStore.listeners.add(listener)
+        return () => {
+          reminderStore.listeners.delete(listener)
+        }
+      },
+      getSnapshot: () => reminderStore.items,
+      commit(items) {
+        reminderStore.items = items
+        try {
+          window.localStorage.setItem(REMINDER_KEY, JSON.stringify(items))
+        } catch (_error) {
+          /* persistence is best effort */
+        }
+        for (const listener of Array.from(reminderStore.listeners)) listener()
+        hostSync.schedule()
+      },
+      add(entry) {
+        const item = {
+          id: newId(),
+          text: entry.text,
+          at: entry.at,
+          repeat: entry.repeat,
+          timeOfDay: entry.timeOfDay || null,
+          dshTask: Boolean(entry.dshTask),
+          firedFor: null,
+          createdAt: Date.now(),
+        }
+        reminderStore.commit([...reminderStore.items, item])
+        return item.id
+      },
+      update(id, patch) {
+        reminderStore.commit(
+          reminderStore.items.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+        )
+      },
+      remove(id) {
+        reminderStore.commit(reminderStore.items.filter((item) => item.id !== id))
+      },
+      snooze(id, minutes) {
+        reminderStore.commit(
+          reminderStore.items.map((item) =>
+            item.id === id ? { ...item, at: Date.now() + minutes * 60000, firedFor: null } : item,
+          ),
+        )
+      },
+      complete(id) {
+        const item = reminderStore.items.find((entry) => entry.id === id)
+        if (!item) return
+        const next = nextOccurrence(item, Date.now())
+        if (next === null) {
+          reminderStore.remove(id)
+          return
+        }
+        reminderStore.commit(
+          reminderStore.items.map((entry) =>
+            entry.id === id ? { ...entry, at: next, firedFor: null } : entry,
+          ),
+        )
+      },
+      takeDue(now) {
+        const due = reminderStore.items.filter((item) => item.at <= now && item.firedFor !== item.at)
+        if (!due.length) return []
+        reminderStore.commit(
+          reminderStore.items.map((item) =>
+            due.some((entry) => entry.id === item.id) ? { ...item, firedFor: item.at } : item,
+          ),
+        )
+        return due
+      },
+    }
+
+    // --------------------------------------------------------------- host sync
+
+    const hostSync = {
+      ctx: null,
+      uiSession: null,
+      token: null,
+      rev: -1,
+      ready: false,
+      applying: false,
+      syncTimer: 0,
+      pollTimer: 0,
+      sessionTimer: 0,
+      liveTimer: 0,
+      liveInFlight: false,
+      liveSignature: '',
+      unsubscribeLive: null,
+      unsubscribeQuestions: null,
+      focusHandler: null,
+      visibilityHandler: null,
+      lastQuestionAnswerId: '',
+
+      async init() {
+        try {
+          const injected = window.__QUICK_PANEL_CONFIG__
+          if (injected && typeof injected.token === 'string' && injected.token) {
+            this.token = injected.token
+          } else {
+            const configResponse = await fetch(`${HOST_ROUTE}/config`, {
+              credentials: 'same-origin',
+              cache: 'no-store',
+            })
+            if (!configResponse.ok) return
+            const config = await configResponse.json()
+            if (!config || !config.token) return
+            this.token = config.token
+          }
+          const state = await this.readState()
+          if (!state) return
+          const hostTodos = Array.isArray(state.todos) ? state.todos : []
+          const hostReminders = Array.isArray(state.reminders) ? state.reminders : []
+          const hasHostData = hostTodos.length > 0 || hostReminders.length > 0
+          const hasLocalData = todoStore.items.length > 0 || reminderStore.items.length > 0
+          this.applying = true
+          if (hasHostData || !hasLocalData) {
+            todoStore.commit(hostTodos)
+            reminderStore.commit(hostReminders)
+          }
+          this.applying = false
+          this.rev = Number.isFinite(state.rev) ? state.rev : 0
+          this.ready = true
+          store.patch({ companionOpen: Boolean(state.companionOpen) })
+          if (!hasHostData && hasLocalData) await this.push()
+          this.setSession(store.state.sessionId)
+          this.unsubscribeLive = store.subscribe(() => this.scheduleLive())
+          this.bindQuestions()
+          this.scheduleLive(true)
+          this.focusHandler = () => this.scheduleLive(true)
+          this.visibilityHandler = () => this.scheduleLive(true)
+          window.addEventListener('focus', this.focusHandler)
+          window.addEventListener('blur', this.focusHandler)
+          document.addEventListener('visibilitychange', this.visibilityHandler)
+          this.pollTimer = window.setInterval(() => this.poll(), 2500)
+        } catch (_error) {
+          /* the Host bridge is optional; localStorage remains the fallback */
+        }
+      },
+
+      async readState() {
+        if (!this.token) return null
+        try {
+          const response = await fetch(
+            `${HOST_ROUTE}/state?token=${encodeURIComponent(this.token)}`,
+            { cache: 'no-store' },
+          )
+          if (!response.ok) return null
+          return await response.json()
+        } catch (_error) {
+          return null
+        }
+      },
+
+      schedule() {
+        if (!this.ready || this.applying) return
+        if (this.syncTimer) window.clearTimeout(this.syncTimer)
+        this.syncTimer = window.setTimeout(() => {
+          this.syncTimer = 0
+          void this.push()
+        }, 350)
+      },
+
+      async push() {
+        if (!this.ready || !this.token || this.applying) return
+        try {
+          const response = await fetch(
+            `${HOST_ROUTE}/action?token=${encodeURIComponent(this.token)}`,
+            {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                'x-quick-panel-token': this.token,
+              },
+              body: JSON.stringify({
+                todos: todoStore.items,
+                reminders: reminderStore.items,
+              }),
+            },
+          )
+          if (!response.ok) return
+          const result = await response.json()
+          if (result && result.ok && Number.isFinite(result.rev)) this.rev = result.rev
+        } catch (_error) {
+          /* retry on the next change */
+        }
+      },
+
+      scheduleLive(immediate) {
+        if (!this.ready) return
+        if (immediate) {
+          void this.pushLive()
+          return
+        }
+        if (this.liveTimer) window.clearTimeout(this.liveTimer)
+        this.liveTimer = window.setTimeout(() => {
+          this.liveTimer = 0
+          void this.pushLive()
+        }, 300)
+      },
+
+      bindQuestions() {
+        const uiSession = this.uiSession
+        if (!uiSession || !uiSession.sessionStatus) return
+        if (typeof uiSession.sessionStatus.subscribe !== 'function') return
+        if (this.unsubscribeQuestions) return
+        this.unsubscribeQuestions = uiSession.sessionStatus.subscribe(() => this.scheduleLive())
+        if (this.ready) this.scheduleLive(true)
+      },
+
+      questionDebug() {
+        try {
+          const uiSession = this.uiSession
+          const sessionId = store.state.sessionId
+          const status =
+            uiSession && uiSession.sessionStatus
+              ? uiSession.sessionStatus.getSnapshot().get(sessionId)
+              : null
+          return {
+            hasUiSession: Boolean(uiSession),
+            sessionId: sessionId || null,
+            hasStatus: Boolean(status),
+            pendingKind: status && status.pendingInteraction
+              ? String(status.pendingInteraction.kind || '')
+              : '',
+          }
+        } catch (error) {
+          return { error: String((error && error.message) || error) }
+        }
+      },
+
+      readQuestion() {
+        try {
+          const uiSession = this.uiSession
+          const sessionId = store.state.sessionId
+          const status = uiSession && uiSession.sessionStatus
+            ? uiSession.sessionStatus.getSnapshot().get(sessionId)
+            : null
+          const pending = status && status.pendingInteraction
+          if (!pending || !Array.isArray(pending.questions)) return null
+          if (pending.kind !== 'question' && pending.kind !== 'plan-review') return null
+          const state = typeof pending.snapshot === 'function' ? pending.snapshot() : {}
+          return {
+            key: String(pending.key || ''),
+            sessionId,
+            kind: pending.kind,
+            callId: pending.callId ? String(pending.callId) : '',
+            state: state.state === 'continued' ? 'continued' : 'open',
+            waitState: state.waitState ? String(state.waitState) : '',
+            countdown: state.countdown
+              ? {
+                  remainingMs: Number.isFinite(state.countdown.remainingMs)
+                    ? state.countdown.remainingMs
+                    : 0,
+                  running: state.countdown.running === true,
+                }
+              : null,
+            questions: pending.questions.map((question) => ({
+              id: String(question.id || ''),
+              question: String(question.question || ''),
+              ...(question.header ? { header: String(question.header) } : {}),
+              ...(question.detail ? { detail: String(question.detail) } : {}),
+              ...(Array.isArray(question.options)
+                ? {
+                    options: question.options.map((option) => ({
+                      label: String(option.label || ''),
+                      ...(option.description
+                        ? { description: String(option.description) }
+                        : {}),
+                    })),
+                  }
+                : {}),
+              ...(question.multiSelect === true ? { multiSelect: true } : {}),
+            })),
+          }
+        } catch (_error) {
+          return null
+        }
+      },
+
+      async handleQuestionAnswer(request) {
+        if (!request || typeof request !== 'object' || !request.id) return
+        if (request.id === this.lastQuestionAnswerId) return
+        this.lastQuestionAnswerId = request.id
+        try {
+          const uiSession = this.uiSession
+          const sessionId = store.state.sessionId
+          const status = uiSession && uiSession.sessionStatus
+            ? uiSession.sessionStatus.getSnapshot().get(sessionId)
+            : null
+          const pending = status && status.pendingInteraction
+          if (
+            pending &&
+            pending.key === request.key &&
+            typeof pending.answer === 'function' &&
+            Array.isArray(request.answers)
+          ) {
+            await pending.answer({ answers: request.answers })
+          }
+        } catch (_error) {
+          /* leave the panel card visible; the user can retry */
+        }
+        try {
+          await fetch(
+            `${HOST_ROUTE}/action?token=${encodeURIComponent(this.token)}`,
+            {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                'x-quick-panel-token': this.token,
+              },
+              body: JSON.stringify({
+                type: 'question-answer-ack',
+                key: request.key,
+              }),
+            },
+          )
+        } catch (_error) {
+          /* the next poll retries the ack */
+        }
+      },
+
+      async pushLive() {
+        if (!this.ready || !this.token) return
+        // The Host live mirror only serves the companion; skip it while closed.
+        if (!store.state.companionOpen) return
+        if (this.liveInFlight) {
+          this.scheduleLive(false)
+          return
+        }
+        const payload = {
+          feed: (store.state.feed || []).slice(-24).map(hostLiveRow).filter(Boolean),
+          // Register refs for the whole loaded history so the DSH panel can
+          // preview images outside the 24-row companion mirror.
+          imageRefs: (store.state.feed || [])
+            .flatMap((node) => userImageRefs(node))
+            .slice(-200),
+          partial: hostLivePartial(store.state.partial),
+          running: Boolean(store.state.running),
+          latest: String(store.state.latest || '').slice(0, 600),
+          usage: store.state.usage || null,
+          question: this.readQuestion(),
+          questionDebug: this.questionDebug(),
+          dshFocused: document.hasFocus(),
+          dshVisible: document.visibilityState === 'visible',
+        }
+        const signature = JSON.stringify(payload)
+        if (signature === this.liveSignature) return
+        this.liveInFlight = true
+        try {
+          const response = await fetch(
+            `${HOST_ROUTE}/action?token=${encodeURIComponent(this.token)}`,
+            {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                'x-quick-panel-token': this.token,
+              },
+              body: JSON.stringify(payload),
+            },
+          )
+          if (!response.ok) return
+          const result = await response.json()
+          if (result && result.ok) {
+            this.liveSignature = signature
+            if (Number.isFinite(result.rev)) this.rev = result.rev
+          }
+        } catch (_error) {
+          /* the next store change retries */
+        } finally {
+          this.liveInFlight = false
+        }
+      },
+
+      async poll() {
+        if (!this.ready || this.applying) return
+        const state = await this.readState()
+        if (!state) return
+        if (typeof state.companionOpen === 'boolean') {
+          const wasOpen = store.state.companionOpen
+          store.patch({ companionOpen: state.companionOpen })
+          if (state.companionOpen && !wasOpen) this.scheduleLive(true)
+        }
+        await this.handleQuestionAnswer(state.questionAnswer)
+        const rev = Number.isFinite(state.rev) ? state.rev : 0
+        if (rev === this.rev) return
+        this.applying = true
+        try {
+          todoStore.commit(Array.isArray(state.todos) ? state.todos : [])
+          reminderStore.commit(Array.isArray(state.reminders) ? state.reminders : [])
+          this.rev = rev
+        } finally {
+          this.applying = false
+        }
+      },
+
+      setSession(sessionId) {
+        if (!this.ready || !this.token) return
+        if (this.sessionTimer) window.clearTimeout(this.sessionTimer)
+        this.sessionTimer = window.setTimeout(() => {
+          this.sessionTimer = 0
+          fetch(`${HOST_ROUTE}/action?token=${encodeURIComponent(this.token)}`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'x-quick-panel-token': this.token,
+            },
+            body: JSON.stringify({ activeSessionId: sessionId || null }),
+          }).catch(() => {})
+        }, 200)
+      },
+
+      async openWindow() {
+        if (!this.token) return { ok: false, error: 'host-unavailable' }
+        try {
+          const response = await fetch(
+            `${HOST_ROUTE}/action?token=${encodeURIComponent(this.token)}`,
+            {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                'x-quick-panel-token': this.token,
+              },
+              body: JSON.stringify({ type: 'open-window' }),
+            },
+          )
+          if (!response.ok) return { ok: false, error: 'request-failed' }
+          const result = await response.json()
+          if (result && result.ok) store.patch({ companionOpen: true })
+          return result
+        } catch (error) {
+          return { ok: false, error: String((error && error.message) || error) }
+        }
+      },
+
+      dispose() {
+        if (this.syncTimer) window.clearTimeout(this.syncTimer)
+        if (this.pollTimer) window.clearInterval(this.pollTimer)
+        if (this.sessionTimer) window.clearTimeout(this.sessionTimer)
+        if (this.liveTimer) window.clearTimeout(this.liveTimer)
+        if (this.unsubscribeLive) this.unsubscribeLive()
+        if (this.unsubscribeQuestions) this.unsubscribeQuestions()
+        if (this.focusHandler) {
+          window.removeEventListener('focus', this.focusHandler)
+          window.removeEventListener('blur', this.focusHandler)
+          this.focusHandler = null
+        }
+        if (this.visibilityHandler) {
+          document.removeEventListener('visibilitychange', this.visibilityHandler)
+          this.visibilityHandler = null
+        }
+        this.syncTimer = 0
+        this.pollTimer = 0
+        this.sessionTimer = 0
+        this.liveTimer = 0
+        this.unsubscribeLive = null
+        this.unsubscribeQuestions = null
+        this.ready = false
+      },
+    }
+
+    function ensureNotifyPermission() {
+      try {
+        if (typeof window.Notification === 'undefined') return
+        if (window.Notification.permission !== 'default') return
+        const request = window.Notification.requestPermission()
+        if (request && typeof request.catch === 'function') request.catch(() => {})
+      } catch (_error) {
+        /* notifications are optional */
+      }
+    }
+
+    let notifyAsked = false
+    function maybeEnsureNotifyPermission() {
+      if (notifyAsked) return
+      notifyAsked = true
+      ensureNotifyPermission()
+    }
+
+    let audioContext = null
+    let audioKeepAlive = false
+
+    function ensureAudio() {
+      try {
+        const Ctor = window.AudioContext || window.webkitAudioContext
+        if (!Ctor) return null
+        if (!audioContext) audioContext = new Ctor()
+        if (!audioKeepAlive) {
+          const oscillator = audioContext.createOscillator()
+          const gain = audioContext.createGain()
+          gain.gain.value = 0.0001
+          oscillator.connect(gain)
+          gain.connect(audioContext.destination)
+          oscillator.start()
+          audioKeepAlive = true
+        }
+        if (audioContext.state === 'suspended') {
+          const resumed = audioContext.resume()
+          if (resumed && typeof resumed.catch === 'function') resumed.catch(() => {})
+        }
+        return audioContext
+      } catch (_error) {
+        return null
+      }
+    }
+
+    async function playChimeContext(kind) {
+      const context = ensureAudio()
+      if (!context) return
+      try {
+        if (context.state === 'suspended') await context.resume()
+      } catch (_error) {
+        return
+      }
+      try {
+        const start = context.currentTime + 0.02
+        const notes = kind === 'reminder' ? [880, 1108.73, 1318.51] : [659.25, 880]
+        notes.forEach((frequency, index) => {
+          const oscillator = context.createOscillator()
+          const gain = context.createGain()
+          oscillator.type = 'sine'
+          oscillator.frequency.value = frequency
+          const at = start + index * 0.14
+          gain.gain.setValueAtTime(0.0001, at)
+          gain.gain.exponentialRampToValueAtTime(0.22, at + 0.02)
+          gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.8)
+          oscillator.connect(gain)
+          gain.connect(context.destination)
+          oscillator.start(at)
+          oscillator.stop(at + 0.85)
+        })
+      } catch (_error) {
+        /* audio is optional */
+      }
+    }
+
+    const chimeUrls = new Map()
+
+    function chimeUrlFor(kind) {
+      if (chimeUrls.has(kind)) return chimeUrls.get(kind)
+      const sampleRate = 22050
+      const duration = 1
+      const total = Math.floor(sampleRate * duration)
+      const buffer = new ArrayBuffer(44 + total * 2)
+      const view = new DataView(buffer)
+      const writeText = (offset, text) => {
+        for (let index = 0; index < text.length; index += 1) {
+          view.setUint8(offset + index, text.charCodeAt(index))
+        }
+      }
+      writeText(0, 'RIFF')
+      view.setUint32(4, 36 + total * 2, true)
+      writeText(8, 'WAVE')
+      writeText(12, 'fmt ')
+      view.setUint32(16, 16, true)
+      view.setUint16(20, 1, true)
+      view.setUint16(22, 1, true)
+      view.setUint32(24, sampleRate, true)
+      view.setUint32(28, sampleRate * 2, true)
+      view.setUint16(32, 2, true)
+      view.setUint16(34, 16, true)
+      writeText(36, 'data')
+      view.setUint32(40, total * 2, true)
+      const notes = kind === 'reminder' ? [880, 1108.73, 1318.51] : [659.25, 880]
+      for (let index = 0; index < total; index += 1) {
+        const time = index / sampleRate
+        let sample = 0
+        notes.forEach((frequency, noteIndex) => {
+          const local = time - noteIndex * 0.14
+          if (local < 0 || local > 0.8) return
+          const attack = Math.min(1, local / 0.02)
+          sample += Math.sin(2 * Math.PI * frequency * local) * attack * Math.exp(-local * 5)
+        })
+        sample = Math.max(-1, Math.min(1, sample * 0.3))
+        view.setInt16(44 + index * 2, Math.round(sample * 0x7fff), true)
+      }
+      const bytes = new Uint8Array(buffer)
+      let binary = ''
+      const chunk = 0x8000
+      for (let index = 0; index < bytes.length; index += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(index, index + chunk))
+      }
+      const url = `data:audio/wav;base64,${window.btoa(binary)}`
+      chimeUrls.set(kind, url)
+      return url
+    }
+
+    let activeAudio = null
+
+    function playChime(kind) {
+      try {
+        const audio = new window.Audio(chimeUrlFor(kind))
+        audio.volume = 0.8
+        if (activeAudio) {
+          try {
+            activeAudio.pause()
+          } catch (_error) {
+            /* ignore */
+          }
+        }
+        activeAudio = audio
+        const result = audio.play()
+        if (result && typeof result.catch === 'function') {
+          result.catch(() => playChimeContext(kind))
+        }
+      } catch (_error) {
+        playChimeContext(kind)
+      }
+    }
+
+    function showNotification(title, body, tag) {
+      try {
+        if (typeof window.Notification === 'undefined') return
+        if (window.Notification.permission !== 'granted') return
+        const notice = new window.Notification(title, { body, tag, silent: true })
+        notice.onclick = () => {
+          try {
+            window.focus()
+          } catch (_error) {
+            /* focusing is best effort */
+          }
+          notice.close()
+        }
+      } catch (_error) {
+        /* notifications are optional */
+      }
+    }
+
+    function formatDuration(ms) {
+      const total = Math.max(0, Math.floor(ms / 1000))
+      return `${pad2(Math.floor(total / 60))}:${pad2(total % 60)}`
+    }
+
+    function contentText(content) {
+      if (!Array.isArray(content)) return ''
+      return content
+        .map((block) => {
+          if (!block) return ''
+          if (typeof block === 'string') return block
+          if (block.type === 'text' && typeof block.text === 'string') return block.text
+          if (typeof block.text === 'string' && block.text) return block.text
+          return ''
+        })
+        .filter(Boolean)
+        .join('\n')
+    }
+
+    function latestText(nodes, partial) {
+      if (partial && Array.isArray(partial.blocks)) {
+        for (let index = partial.blocks.length - 1; index >= 0; index -= 1) {
+          const block = partial.blocks[index]
+          if (block && block.kind === 'text' && block.text && block.text.trim()) return block.text.trim()
+        }
+        for (let index = partial.blocks.length - 1; index >= 0; index -= 1) {
+          const block = partial.blocks[index]
+          if (block && block.kind === 'reasoning' && block.text && block.text.trim()) {
+            return block.text.trim()
+          }
+        }
+      }
+      if (!Array.isArray(nodes)) return ''
+      for (let index = nodes.length - 1; index >= 0; index -= 1) {
+        const node = nodes[index]
+        if (!node) continue
+        if (node.kind === 'assistant' && Array.isArray(node.blocks)) {
+          for (let blockIndex = node.blocks.length - 1; blockIndex >= 0; blockIndex -= 1) {
+            const block = node.blocks[blockIndex]
+            if (block && block.kind === 'text' && block.text && block.text.trim()) return block.text.trim()
+          }
+        }
+        if (node.kind === 'user' || node.kind === 'steering') {
+          const value = contentText(node.content)
+          if (value.trim()) return value.trim()
+        }
+      }
+      return ''
+    }
+
+    function hostLiveBlocks(blocks) {
+      return (Array.isArray(blocks) ? blocks : []).slice(0, 16).map((block) => {
+        const kind =
+          block && block.kind === 'reasoning'
+            ? 'reasoning'
+            : block && block.kind === 'tool-call'
+              ? 'tool-call'
+              : block && block.kind === 'image'
+                ? 'image'
+                : 'text'
+        return {
+          kind,
+          text: String((block && block.text) || '').slice(0, 4000),
+          name: String((block && block.name) || '').slice(0, 200),
+        }
+      })
+    }
+
+    function userImageRefs(node) {
+      if (!node || (node.kind !== 'user' && node.kind !== 'steering')) return []
+      if (!Array.isArray(node.content)) return []
+      return node.content
+        .filter(
+          (block) =>
+            block &&
+            (block.type === 'image' || block.kind === 'image') &&
+            block.attachment &&
+            typeof block.attachment === 'object',
+        )
+        .slice(0, 4)
+        .map((block) => ({ ref: block.attachment }))
+    }
+
+    function hostLiveRow(node) {
+      if (!node || typeof node !== 'object') return null
+      if (node.kind === 'user' || node.kind === 'steering') {
+        const images = userImageRefs(node)
+        const hasImage =
+          images.length > 0 ||
+          (Array.isArray(node.content) &&
+            node.content.some((block) => block && (block.type === 'image' || block.kind === 'image')))
+        const row = {
+          kind: node.kind,
+          time: node.time,
+          text: contentText(node.content).slice(0, 4000),
+          hasImage,
+        }
+        if (images.length) row.images = images
+        return row
+      }
+      if (node.kind === 'assistant') {
+        return {
+          kind: 'assistant',
+          time: node.time,
+          interrupted: Boolean(node.interrupted),
+          blocks: hostLiveBlocks(node.blocks),
+        }
+      }
+      if (node.kind === 'tool-result') {
+        return {
+          kind: 'tool-result',
+          time: node.time,
+          name: String(node.name || ''),
+          isError: Boolean(node.isError),
+        }
+      }
+      if (node.kind === 'turn-error') {
+        return {
+          kind: 'turn-error',
+          time: node.time,
+          message: String(node.message || node.code || '').slice(0, 2000),
+        }
+      }
+      return null
+    }
+
+    function hostLivePartial(partial) {
+      if (!partial) return null
+      return { blocks: hostLiveBlocks(partial.blocks) }
+    }
+
+    function codeSegments(text) {
+      const source = String(text || '')
+      const segments = []
+      const pattern = /```([^\n`]*)\n([\s\S]*?)```/g
+      let last = 0
+      let match
+      while ((match = pattern.exec(source))) {
+        if (match.index > last) segments.push({ type: 'text', text: source.slice(last, match.index) })
+        segments.push({ type: 'code', lang: match[1].trim(), text: match[2] })
+        last = match.index + match[0].length
+      }
+      if (last < source.length) segments.push({ type: 'text', text: source.slice(last) })
+      return segments
+    }
+
+    function timeLabel(time) {
+      const date = new Date(time || Date.now())
+      return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+    }
+
+    function buildHandoff(t, todo) {
+      const now = new Date()
+      const pad = (value) => String(value).padStart(2, '0')
+      const time = `${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`
+      return String(t('handoffTemplate')).replace('{text}', todo.text).replace('{time}', time)
+    }
+
+    // ---------------------------------------------------------------- icons
+
+    function IconPanel({ size = 16 }) {
+      return h(
+        'svg',
+        {
+          width: size,
+          height: size,
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 1.7,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          'aria-hidden': true,
+        },
+        h('rect', { x: 3.5, y: 4.5, width: 17, height: 15, rx: 3 }),
+        h('path', { d: 'M8 9.5h8M8 13h5.5' }),
+        h('circle', { cx: 16.6, cy: 15.4, r: 1.6, fill: 'currentColor', stroke: 'none' }),
+      )
+    }
+
+    function IconGrip() {
+      return h(
+        'svg',
+        { width: 12, height: 12, viewBox: '0 0 12 12', fill: 'currentColor', 'aria-hidden': true },
+        h('circle', { cx: 3, cy: 3, r: 1 }),
+        h('circle', { cx: 9, cy: 3, r: 1 }),
+        h('circle', { cx: 3, cy: 6, r: 1 }),
+        h('circle', { cx: 9, cy: 6, r: 1 }),
+        h('circle', { cx: 3, cy: 9, r: 1 }),
+        h('circle', { cx: 9, cy: 9, r: 1 }),
+      )
+    }
+
+    function IconWindow({ size = 15 }) {
+      return h(
+        'svg',
+        {
+          width: size,
+          height: size,
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 1.8,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          'aria-hidden': true,
+        },
+        h('rect', { x: 3.5, y: 5, width: 12, height: 12, rx: 2.5 }),
+        h('path', { d: 'M13.5 10.5l5-5M14 5h4.5v4.5' }),
+      )
+    }
+
+    function IconChevronDown({ size = 16 }) {
+      return h(
+        'svg',
+        {
+          width: size,
+          height: size,
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 1.8,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          'aria-hidden': true,
+        },
+        h('path', { d: 'M6 9.5l6 6 6-6' }),
+      )
+    }
+
+    function IconChevronRight({ size = 14 }) {
+      return h(
+        'svg',
+        {
+          width: size,
+          height: size,
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 1.8,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          'aria-hidden': true,
+        },
+        h('path', { d: 'M9 5.5l6.5 6.5L9 18.5' }),
+      )
+    }
+
+    function IconCheck({ size = 12 }) {
+      return h(
+        'svg',
+        {
+          width: size,
+          height: size,
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 2.1,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          'aria-hidden': true,
+        },
+        h('path', { d: 'M5 12.5l4.2 4.2L19 6.8' }),
+      )
+    }
+
+    function IconBell({ size = 13 }) {
+      return h(
+        'svg',
+        {
+          width: size,
+          height: size,
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 1.7,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          'aria-hidden': true,
+        },
+        h('path', { d: 'M6 9.5a6 6 0 0 1 12 0c0 3.2.8 5 2 6.2H4c1.2-1.2 2-3 2-6.2z' }),
+        h('path', { d: 'M10 18a2.2 2.2 0 0 0 4 0' }),
+      )
+    }
+
+    function IconPlus({ size = 16 }) {
+      return h(
+        'svg',
+        {
+          width: size,
+          height: size,
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 2,
+          strokeLinecap: 'round',
+          'aria-hidden': true,
+        },
+        h('path', { d: 'M12 5.5v13M5.5 12h13' }),
+      )
+    }
+
+    function IconCopy({ size = 13 }) {
+      return h(
+        'svg',
+        {
+          width: size,
+          height: size,
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 1.7,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          'aria-hidden': true,
+        },
+        h('rect', { x: 9, y: 9, width: 10.5, height: 10.5, rx: 2.2 }),
+        h('path', { d: 'M15 9V6.5A2.5 2.5 0 0 0 12.5 4H6.5A2.5 2.5 0 0 0 4 6.5v6A2.5 2.5 0 0 0 6.5 15H9' }),
+      )
+    }
+
+    function IconTrash({ size = 13 }) {
+      return h(
+        'svg',
+        {
+          width: size,
+          height: size,
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 1.7,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          'aria-hidden': true,
+        },
+        h('path', { d: 'M4.5 7h15M9.5 7V5.5A1.5 1.5 0 0 1 11 4h2a1.5 1.5 0 0 1 1.5 1.5V7' }),
+        h('path', { d: 'M6.5 7l.8 11.2A2 2 0 0 0 9.3 20h5.4a2 2 0 0 0 2-1.8L17.5 7' }),
+        h('path', { d: 'M10 11v5M14 11v5' }),
+      )
+    }
+
+    function IconSend({ size = 14 }) {
+      return h(
+        'svg',
+        {
+          width: size,
+          height: size,
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 1.8,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          'aria-hidden': true,
+        },
+        h('path', { d: 'M4.5 11.6l15-7-6.3 15-2.4-6.2-6.3-1.8z' }),
+        h('path', { d: 'M10.8 13.4l4.3-4.2' }),
+      )
+    }
+
+    function IconStop({ size = 11 }) {
+      return h(
+        'svg',
+        {
+          width: size,
+          height: size,
+          viewBox: '0 0 24 24',
+          fill: 'currentColor',
+          'aria-hidden': true,
+        },
+        h('rect', { x: 6.5, y: 6.5, width: 11, height: 11, rx: 2 }),
+      )
+    }
+
+    // ---------------------------------------------------------------- hooks
+
+    function useNow(interval) {
+      const [now, setNow] = React.useState(() => Date.now())
+      useEffect(() => {
+        const timer = window.setInterval(() => setNow(Date.now()), interval)
+        return () => window.clearInterval(timer)
+      }, [interval])
+      return now
+    }
+
+    function useViewport() {
+      const [viewport, setViewport] = useState(() => ({
+        w: window.innerWidth,
+        h: window.innerHeight,
+      }))
+      useEffect(() => {
+        const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight })
+        window.addEventListener('resize', onResize)
+        return () => window.removeEventListener('resize', onResize)
+      }, [])
+      return viewport
+    }
+
+    function clockOf(now) {
+      const date = new Date(now)
+      const pad = (value) => String(value).padStart(2, '0')
+      let label
+      try {
+        label = new Intl.DateTimeFormat(undefined, {
+          month: 'long',
+          day: 'numeric',
+          weekday: 'long',
+        }).format(date)
+      } catch (_error) {
+        label = date.toDateString()
+      }
+      return {
+        hh: pad(date.getHours()),
+        mm: pad(date.getMinutes()),
+        ss: pad(date.getSeconds()),
+        date: label,
+      }
+    }
+
+    // -------------------------------------------------------------- overlay
+
+    function Overlay({ t, schedule, openSchedule, loadOlder, sendPrompt, stopTurn }) {
+      const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
+      const now = useNow(1000)
+      const viewport = useViewport()
+      const [anchor, setAnchorState] = useState(loadAnchor)
+      const anchorRef = useRef(anchor)
+      const suppressClick = useRef(false)
+      const [dueQueue, setDueQueue] = useState([])
+      const due = dueQueue[0] || null
+      const lastRunning = useRef(false)
+      const runStarted = useRef(0)
+      const lastSession = useRef(state.sessionId)
+
+      const panelWidth = Math.min(380, Math.max(280, viewport.w - 16))
+      const half = panelWidth / 2 + 8
+      const clampAnchor = (next) => ({
+        cx: clampRange(next.cx, half, viewport.w - half),
+        top: clampRange(next.top, 8, viewport.h - 72),
+      })
+      const setAnchor = (next) => {
+        const clamped = clampAnchor(next)
+        anchorRef.current = clamped
+        setAnchorState(clamped)
+      }
+      const safeAnchor = clampAnchor(anchor)
+
+      useEffect(() => {
+        anchorRef.current = safeAnchor
+        setAnchorState(safeAnchor)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [viewport.w, viewport.h])
+
+      useEffect(() => {
+        const onKeyDown = (event) => {
+          if (!(event.ctrlKey || event.metaKey) || !event.shiftKey) return
+          if (event.key !== 'L' && event.key !== 'l') return
+          event.preventDefault()
+          togglePanel()
+        }
+        window.addEventListener('keydown', onKeyDown)
+        return () => window.removeEventListener('keydown', onKeyDown)
+      }, [])
+
+      const companionRef = useRef(false)
+      useEffect(() => {
+        companionRef.current = Boolean(state.companionOpen)
+      }, [state.companionOpen])
+
+      useEffect(() => {
+        const check = () => {
+          if (companionRef.current) return
+          const items = reminderStore.takeDue(Date.now())
+          if (!items.length) return
+          playChime('reminder')
+          items.slice(0, 3).forEach((item) => {
+            showNotification(t('notifyReminderTitle'), item.text, `qp-reminder-${item.id}`)
+          })
+          setDueQueue((queue) => [...queue, ...items])
+        }
+        check()
+        const timer = window.setInterval(check, 1000)
+        return () => window.clearInterval(timer)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [])
+
+      const running = Boolean(state.running)
+      useEffect(() => {
+        if (lastSession.current !== state.sessionId) {
+          lastSession.current = state.sessionId
+          lastRunning.current = running
+          runStarted.current = running ? Date.now() : 0
+          return
+        }
+        if (running && !lastRunning.current) runStarted.current = Date.now()
+        if (!running && lastRunning.current) {
+          const elapsed = runStarted.current ? Date.now() - runStarted.current : 0
+          if (elapsed >= 2000 && !companionRef.current) {
+            playChime('done')
+            if (!document.hasFocus()) {
+              showNotification(
+                t('turnDone'),
+                String(t('turnDoneBody')).replace('{time}', formatDuration(elapsed)),
+                'qp-turn-done',
+              )
+            }
+          }
+        }
+        lastRunning.current = running
+      }, [running, state.sessionId])
+
+      const snoozeDue = () => {
+        if (!due) return
+        reminderStore.snooze(due.id, 10)
+        setDueQueue((queue) => queue.slice(1))
+      }
+
+      const completeDue = () => {
+        if (!due) return
+        reminderStore.complete(due.id)
+        setDueQueue((queue) => queue.slice(1))
+      }
+
+      const beginDrag = (event, kind) => {
+        if (event.button !== 0) return
+        if (
+          kind === 'panel' &&
+          event.target &&
+          event.target.closest &&
+          event.target.closest('button, a, input, textarea, select, [data-qp-no-drag]')
+        ) {
+          return
+        }
+        if (kind === 'panel') event.preventDefault()
+
+        const start = {
+          x: event.clientX,
+          y: event.clientY,
+          cx: anchorRef.current.cx,
+          top: anchorRef.current.top,
+        }
+        let moved = false
+
+        const onMove = (moveEvent) => {
+          const dx = moveEvent.clientX - start.x
+          const dy = moveEvent.clientY - start.y
+          if (!moved && Math.hypot(dx, dy) < 4) return
+          moved = true
+          setAnchor({ cx: start.cx + dx, top: start.top + dy })
+        }
+
+        const onUp = () => {
+          window.removeEventListener('pointermove', onMove)
+          window.removeEventListener('pointerup', onUp)
+          window.removeEventListener('pointercancel', onUp)
+          window.removeEventListener('blur', onUp)
+          if (!moved) return
+          saveAnchor(anchorRef.current)
+          if (kind === 'island') {
+            suppressClick.current = true
+            window.setTimeout(() => {
+              suppressClick.current = false
+            }, 0)
+          }
+        }
+
+        window.addEventListener('pointermove', onMove)
+        window.addEventListener('pointerup', onUp)
+        window.addEventListener('pointercancel', onUp)
+        window.addEventListener('blur', onUp)
+      }
+
+      return h(
+        React.Fragment,
+        null,
+        h('style', { key: 'qp-style' }, CSS),
+        state.mode === 'panel'
+          ? h(Panel, {
+              t,
+              now,
+              state,
+              anchor: safeAnchor,
+              width: panelWidth,
+              maxHeight: Math.max(300, viewport.h - safeAnchor.top - 12),
+              onDragStart: beginDrag,
+              due,
+              onSnooze: snoozeDue,
+              onComplete: completeDue,
+              schedule,
+              openSchedule,
+              loadOlder,
+              sendPrompt,
+              stopTurn,
+            })
+          : state.mode === 'island'
+            ? h(Island, {
+                t,
+                now,
+                state,
+                anchor: safeAnchor,
+                due,
+                onSnooze: snoozeDue,
+                onComplete: completeDue,
+                onDragStart: beginDrag,
+                onClick: () => {
+                  if (suppressClick.current) {
+                    suppressClick.current = false
+                    return
+                  }
+                  openPanel()
+                },
+              })
+            : null,
+      )
+    }
+
+    function Island({ t, now, state, anchor, due, onSnooze, onComplete, onDragStart, onClick }) {
+      if (due) {
+        return h(
+          'div',
+          { className: 'qp-island-anchor', style: { left: anchor.cx, top: anchor.top } },
+          h(
+            'div',
+            {
+              className: 'qp-due-card',
+              role: 'button',
+              tabIndex: 0,
+              onClick,
+              onKeyDown: (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return
+                event.preventDefault()
+                onClick()
+              },
+            },
+            h(
+              'div',
+              { className: 'qp-due-head' },
+              h(IconBell, { size: 12 }),
+              h('span', null, `${t('reminderDue')} · ${formatWhen(t, due.at, now)}`),
+            ),
+            h('div', { className: 'qp-due-text' }, due.text),
+            h(
+              'div',
+              { className: 'qp-due-actions' },
+              h(
+                'button',
+                {
+                  type: 'button',
+                  onClick: (event) => {
+                    event.stopPropagation()
+                    onSnooze()
+                  },
+                },
+                t('snooze10'),
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'is-primary',
+                  onClick: (event) => {
+                    event.stopPropagation()
+                    onComplete()
+                  },
+                },
+                t('markReminderDone'),
+              ),
+            ),
+          ),
+        )
+      }
+
+      const clock = clockOf(now)
+      const todos = useSyncExternalStore(todoStore.subscribe, todoStore.getSnapshot)
+      const connected = Boolean(state.sessionId)
+      const pending = todos.filter((todo) => !todo.done).length
+      const latest = state.latest || ''
+      const live = Boolean(state.running)
+      const text =
+        latest ||
+        (pending > 0 ? `${pending} ${t('todos')}` : connected ? t('islandConnected') : t('islandIdle'))
+
+      return h(
+        'div',
+        { className: 'qp-island-anchor', style: { left: anchor.cx, top: anchor.top } },
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'qp-island',
+            onPointerDown: (event) => onDragStart(event, 'island'),
+            onClick,
+            title: `${t('open')} · ${t('dragHint')}`,
+            'aria-label': t('open'),
+          },
+          h('span', { className: live ? 'qp-dot is-live' : 'qp-dot' }),
+          h('span', { className: 'qp-island-brand' }, t('panel')),
+          h('span', { className: 'qp-island-sep' }),
+          h('span', { className: 'qp-island-text' }, text),
+          h('span', { className: 'qp-island-time' }, `${clock.hh}:${clock.mm}`),
+          h(IconChevronRight, { size: 13 }),
+        ),
+      )
+    }
+
+    function Section({ title, action, children }) {
+      return h(
+        'section',
+        { className: 'qp-section' },
+        h('div', { className: 'qp-section-title' }, h('span', null, title), action || null),
+        children,
+      )
+    }
+
+    function Capture({ t, onAdd }) {
+      const [value, setValue] = useState('')
+      const inputRef = useRef(null)
+
+      const commit = () => {
+        const lines = splitLines(value)
+        if (!lines.length) return
+        onAdd(lines)
+        setValue('')
+        if (inputRef.current) inputRef.current.focus()
+      }
+
+      const onPaste = (event) => {
+        const text = event.clipboardData ? event.clipboardData.getData('text') : ''
+        if (!text || !/[\r\n]/.test(text)) return
+        const lines = splitLines(text)
+        if (lines.length < 2) return
+        event.preventDefault()
+        onAdd(lines)
+      }
+
+      return h(
+        'div',
+        { className: 'qp-capture' },
+        h('textarea', {
+          ref: inputRef,
+          className: 'qp-capture-input',
+          rows: Math.min(3, Math.max(1, value.split('\n').length)),
+          value,
+          placeholder: t('capturePlaceholder'),
+          'aria-label': t('capturePlaceholder'),
+          onChange: (event) => setValue(event.target.value),
+          onKeyDown: (event) => {
+            if (event.key !== 'Enter' || event.shiftKey) return
+            if (event.nativeEvent && event.nativeEvent.isComposing) return
+            event.preventDefault()
+            commit()
+          },
+          onPaste,
+        }),
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'qp-add',
+            onClick: commit,
+            disabled: !value.trim(),
+            title: t('add'),
+            'aria-label': t('add'),
+          },
+          h(IconPlus, { size: 16 }),
+        ),
+      )
+    }
+
+    function TodoRow({ todo, index, t, onHandoff, onDone, onEdit, onDelete, onCopy }) {
+      const [editing, setEditing] = useState(false)
+      const [draft, setDraft] = useState(todo.text)
+      const settled = useRef(false)
+      const cancelled = useRef(false)
+
+      useEffect(() => {
+        if (!editing) setDraft(todo.text)
+      }, [todo.text, editing])
+
+      const begin = () => {
+        settled.current = false
+        cancelled.current = false
+        setDraft(todo.text)
+        setEditing(true)
+      }
+
+      const save = () => {
+        if (settled.current) return
+        settled.current = true
+        const text = draft.trim()
+        setEditing(false)
+        if (!text) {
+          setDraft(todo.text)
+          return
+        }
+        if (text !== todo.text) onEdit(todo.id, text)
+      }
+
+      const cancel = () => {
+        settled.current = true
+        cancelled.current = true
+        setDraft(todo.text)
+        setEditing(false)
+      }
+
+      return h(
+        'div',
+        { className: `qp-todo${todo.done ? ' is-done' : ''}` },
+        h('span', { className: 'qp-todo-index' }, `${index + 1}.`),
+        h(
+          'button',
+          {
+            type: 'button',
+            role: 'checkbox',
+            'aria-checked': todo.handedOff,
+            className: `qp-todo-check${todo.handedOff ? ' is-on' : ''}`,
+            onClick: () => onHandoff(todo),
+            title: t('handoff'),
+            'aria-label': t('handoff'),
+          },
+          todo.handedOff ? h(IconCheck, { size: 12 }) : null,
+        ),
+        editing
+          ? h('input', {
+              className: 'qp-edit-input',
+              value: draft,
+              autoFocus: true,
+              onChange: (event) => setDraft(event.target.value),
+              onBlur: () => {
+                if (cancelled.current) {
+                  cancelled.current = false
+                  return
+                }
+                save()
+              },
+              onKeyDown: (event) => {
+                if (event.key === 'Enter' && !(event.nativeEvent && event.nativeEvent.isComposing)) {
+                  event.preventDefault()
+                  save()
+                } else if (event.key === 'Escape') {
+                  event.stopPropagation()
+                  cancel()
+                }
+              },
+            })
+          : h(
+              'div',
+              {
+                className: 'qp-todo-main',
+                onDoubleClick: begin,
+                title: `${todo.text}\n${t('editHint')}`,
+              },
+              h('span', { className: 'qp-todo-text' }, todo.text),
+              todo.handedOff ? h('span', { className: 'qp-tag' }, t('handed')) : null,
+            ),
+        h(
+          'div',
+          { className: 'qp-todo-actions' },
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'qp-mini',
+              onClick: () => onCopy(todo),
+              title: t('copy'),
+              'aria-label': t('copy'),
+            },
+            h(IconCopy, { size: 13 }),
+          ),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'qp-mini',
+              onClick: () => onDelete(todo),
+              title: t('delete'),
+              'aria-label': t('delete'),
+            },
+            h(IconTrash, { size: 13 }),
+          ),
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            className: `qp-done-dot${todo.done ? ' is-on' : ''}`,
+            onClick: () => onDone(todo),
+            title: todo.done ? t('markUndone') : t('markDone'),
+            'aria-label': todo.done ? t('markUndone') : t('markDone'),
+            'aria-pressed': todo.done,
+          },
+          todo.done ? h(IconCheck, { size: 11 }) : null,
+        ),
+      )
+    }
+
+    function Wheel({ value, count, onChange, label }) {
+      const index = Math.min(count - 1, Math.max(0, Number(value) || 0))
+      const format = (number) => String((number + count) % count).padStart(2, '0')
+      const elementRef = useRef(null)
+      const latest = useRef(index)
+      latest.current = index
+
+      useEffect(() => {
+        const element = elementRef.current
+        if (!element) return
+        const onWheel = (event) => {
+          event.preventDefault()
+          const direction = event.deltaY > 0 ? 1 : -1
+          onChange(format(latest.current + direction))
+        }
+        element.addEventListener('wheel', onWheel, { passive: false })
+        return () => element.removeEventListener('wheel', onWheel)
+      }, [onChange, count])
+
+      const step = (direction) => onChange(format(index + direction))
+
+      return h(
+        'div',
+        {
+          ref: elementRef,
+          className: 'qp-wheel',
+          role: 'spinbutton',
+          tabIndex: 0,
+          'aria-label': label,
+          'aria-valuemin': 0,
+          'aria-valuemax': count - 1,
+          'aria-valuenow': index,
+          onKeyDown: (event) => {
+            if (event.key === 'ArrowUp') {
+              event.preventDefault()
+              step(-1)
+            } else if (event.key === 'ArrowDown') {
+              event.preventDefault()
+              step(1)
+            }
+          },
+        },
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'qp-wheel-step',
+            tabIndex: -1,
+            'aria-hidden': true,
+            onClick: () => step(-1),
+          },
+          format(index - 1),
+        ),
+        h('div', { className: 'qp-wheel-current', key: value }, format(index)),
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'qp-wheel-step',
+            tabIndex: -1,
+            'aria-hidden': true,
+            onClick: () => step(1),
+          },
+          format(index + 1),
+        ),
+      )
+    }
+
+    function ReminderSection({ t, now, reminders, dueId, sessionId, schedule, openSchedule, onAdd, onRemove }) {
+      const [open, setOpen] = useState(false)
+      const [text, setText] = useState('')
+      const [repeat, setRepeat] = useState('none')
+      const [withDsh, setWithDsh] = useState(false)
+      const [dateValue, setDateValue] = useState(() => defaultWhenParts(Date.now() + 10 * 60000).date)
+      const [hourValue, setHourValue] = useState(() => defaultWhenParts(Date.now() + 10 * 60000).hour)
+      const [minuteValue, setMinuteValue] = useState(() => defaultWhenParts(Date.now() + 10 * 60000).minute)
+      const [error, setError] = useState(null)
+      const scheduleApi = schedule ? schedule() : null
+      const canDsh =
+        DSH_TASKS_ENABLED && Boolean(sessionId && scheduleApi && typeof scheduleApi.create === 'function')
+
+      const reset = () => {
+        const parts = defaultWhenParts(Date.now() + 10 * 60000)
+        setText('')
+        setRepeat('none')
+        setWithDsh(false)
+        setDateValue(parts.date)
+        setHourValue(parts.hour)
+        setMinuteValue(parts.minute)
+        setError(null)
+      }
+
+      const save = () => {
+        const clean = text.trim()
+        const at = computeAt(repeat, dateValue, hourValue, minuteValue, Date.now())
+        if (at === null) {
+          setError(t('invalidTime'))
+          return
+        }
+        onAdd({
+          text: clean || t('reminderDefault'),
+          at,
+          repeat,
+          timeOfDay: repeat === 'none' ? null : `${hourValue}:${minuteValue}`,
+          dshTask: Boolean(withDsh && canDsh),
+        })
+        maybeEnsureNotifyPermission()
+        ensureAudio()
+        reset()
+        setOpen(false)
+      }
+
+      const sorted = [...reminders].sort((a, b) => a.at - b.at)
+
+      return h(
+        'section',
+        { className: 'qp-section' },
+        h(
+          'div',
+          { className: 'qp-section-title' },
+          h('span', null, t('reminders')),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'qp-section-action',
+              onClick: () => {
+                setOpen((value) => !value)
+                setError(null)
+              },
+              title: t('addReminder'),
+              'aria-label': t('addReminder'),
+              'aria-expanded': open,
+            },
+            open ? h(IconChevronDown, { size: 13 }) : h(IconPlus, { size: 13 }),
+          ),
+        ),
+        open
+          ? h(
+              'div',
+              { className: 'qp-reminder-form' },
+              h('input', {
+                type: 'text',
+                className: 'qp-form-input',
+                value: text,
+                autoFocus: true,
+                placeholder: t('reminderPlaceholder'),
+                'aria-label': t('reminderPlaceholder'),
+                onChange: (event) => setText(event.target.value),
+                onKeyDown: (event) => {
+                  if (event.key !== 'Enter' || (event.nativeEvent && event.nativeEvent.isComposing)) return
+                  event.preventDefault()
+                  save()
+                },
+              }),
+              repeat === 'none'
+                ? h('input', {
+                    type: 'text',
+                    className: 'qp-form-input qp-date-input',
+                    value: dateValue,
+                    placeholder: 'YYYY-MM-DD',
+                    onChange: (event) => setDateValue(event.target.value),
+                    'aria-label': t('when'),
+                  })
+                : null,
+              h(
+                'div',
+                { className: 'qp-clockpick' },
+                h(Wheel, { value: hourValue, count: 24, onChange: setHourValue, label: t('when') }),
+                h('span', { className: 'qp-clockpick-colon' }, ':'),
+                h(Wheel, { value: minuteValue, count: 60, onChange: setMinuteValue, label: t('when') }),
+              ),
+              error ? h('div', { className: 'qp-form-error' }, error) : null,
+              canDsh
+                ? h(
+                    'label',
+                    { className: 'qp-checkline' },
+                    h('input', {
+                      type: 'checkbox',
+                      className: 'qp-checkline-box',
+                      checked: withDsh,
+                      onChange: (event) => setWithDsh(event.target.checked),
+                    }),
+                    h('span', null, t('alsoSchedule')),
+                    h('span', { className: 'qp-checkline-hint' }, t('alsoScheduleHint')),
+                  )
+                : null,
+              h(
+                'div',
+                { className: 'qp-form-row qp-bottom-row' },
+                h('span', { className: 'qp-form-label' }, t('repeat')),
+                h(
+                  'select',
+                  {
+                    className: 'qp-form-select qp-repeat-select',
+                    value: repeat,
+                    onChange: (event) => setRepeat(event.target.value),
+                    'aria-label': t('repeat'),
+                  },
+                  h('option', { value: 'none' }, t('repeatNone')),
+                  h('option', { value: 'daily' }, t('repeatDaily')),
+                  h('option', { value: 'weekdays' }, t('repeatWeekdays')),
+                ),
+                h(
+                  'div',
+                  { className: 'qp-action-group' },
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'qp-btn',
+                      onClick: () => playChime('reminder'),
+                    },
+                    t('testSound'),
+                  ),
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'qp-btn',
+                      onClick: () => {
+                        setOpen(false)
+                        reset()
+                      },
+                    },
+                    t('cancel'),
+                  ),
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'qp-btn is-primary',
+                      onClick: save,
+                    },
+                    t('save'),
+                  ),
+                ),
+              ),
+            )
+          : null,
+        sorted.length === 0
+          ? open
+            ? null
+            : h('div', { className: 'qp-placeholder' }, t('noReminders'))
+          : h(
+              'div',
+              { className: 'qp-reminder-list' },
+              sorted.map((item, index) =>
+                h(
+                  'div',
+                  {
+                    key: item.id,
+                    className: `qp-reminder${dueId === item.id ? ' is-due' : ''}${item.at <= now ? ' is-past' : ''}`,
+                  },
+                  h('span', { className: 'qp-reminder-index' }, `${index + 1}.`),
+                  h('span', { className: 'qp-reminder-time' }, formatWhen(t, item.at, now)),
+                  h('span', { className: 'qp-reminder-text', title: item.text }, item.text),
+                  item.repeat !== 'none'
+                    ? h(
+                        'span',
+                        { className: 'qp-tag' },
+                        item.repeat === 'daily' ? t('repeatDaily') : t('repeatWeekdays'),
+                      )
+                    : null,
+                  item.dshTask && DSH_TASKS_ENABLED
+                    ? h(
+                        'button',
+                        {
+                          type: 'button',
+                          className: 'qp-tag is-link',
+                          onClick: openSchedule,
+                          title: t('openSchedule'),
+                        },
+                        t('dshTaskTag'),
+                      )
+                    : null,
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'qp-mini',
+                      onClick: () => onRemove(item.id),
+                      title: t('deleteReminder'),
+                      'aria-label': t('deleteReminder'),
+                    },
+                    h(IconTrash, { size: 13 }),
+                  ),
+                ),
+              ),
+            ),
+        scheduleApi && DSH_TASKS_ENABLED
+          ? h(
+              'button',
+              { type: 'button', className: 'qp-link-btn', onClick: openSchedule },
+              `${t('openSchedule')} ↗`,
+            )
+          : null,
+      )
+    }
+
+    function AssistantBlockView({ block, t, streaming }) {
+      if (!block) return null
+      if (block.kind === 'reasoning') {
+        return h(
+          'div',
+          { className: 'qp-reasoning' },
+          h('div', { className: 'qp-reasoning-label' }, t('reasoning')),
+          h('div', { className: 'qp-reasoning-text' }, block.text || ''),
+        )
+      }
+      if (block.kind === 'tool-call') {
+        return h(
+          'div',
+          { className: 'qp-tool-chip' },
+          h('span', { className: 'qp-tool-dot' }),
+          h('span', { className: 'qp-tool-name' }, block.name || t('tool')),
+        )
+      }
+      if (block.kind === 'image') {
+        return h('div', { className: 'qp-feed-note' }, t('imageOnly'))
+      }
+      if (block.kind === 'text') {
+        const segments = codeSegments(block.text || '')
+        return h(
+          'div',
+          { className: 'qp-feed-text' },
+          segments.map((segment, index) =>
+            segment.type === 'code'
+              ? h(
+                  'div',
+                  { key: `c${index}`, className: 'qp-code' },
+                  h('div', { className: 'qp-code-head' }, segment.lang || 'code'),
+                  h('pre', null, segment.text),
+                )
+              : h('span', { key: `t${index}` }, segment.text),
+          ),
+          streaming ? h('span', { className: 'qp-caret' }) : null,
+        )
+      }
+      return null
+    }
+
+    function hostAttachmentSrc(attachment) {
+      const id =
+        attachment && typeof attachment.attachmentId === 'string' ? attachment.attachmentId : ''
+      if (!id) return ''
+      const injected = window.__QUICK_PANEL_CONFIG__
+      const token =
+        (injected && typeof injected.token === 'string' && injected.token) || hostSync.token || ''
+      if (!token) return ''
+      return `${HOST_ROUTE}/attachment?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`
+    }
+
+    const FeedImage = React.memo(function FeedImage({ attachment, t }) {
+      const source = hostAttachmentSrc(attachment)
+      const [attempt, setAttempt] = useState(0)
+      const [failed, setFailed] = useState(false)
+      if (!source || failed) {
+        return h('span', { className: 'qp-feed-image-tag' }, t('imageOnly'))
+      }
+      return h('img', {
+        className: 'qp-feed-image',
+        src: attempt ? `${source}&retry=${attempt}` : source,
+        alt: t('imageOnly'),
+        loading: 'lazy',
+        decoding: 'async',
+        onError: () => {
+          if (attempt < 2) {
+            window.setTimeout(() => setAttempt(attempt + 1), 500)
+          } else {
+            setFailed(true)
+          }
+        },
+      })
+    })
+
+    const FeedRow = React.memo(function FeedRow({ node, t }) {
+      if (!node) return null
+      const metaTime = timeLabel(node.time)
+      if (node.kind === 'user' || node.kind === 'steering') {
+        const text = contentText(node.content)
+        const images = Array.isArray(node.content)
+          ? node.content
+              .filter(
+                (block) =>
+                  block &&
+                  (block.type === 'image' || block.kind === 'image') &&
+                  block.attachment &&
+                  typeof block.attachment === 'object',
+              )
+              .slice(0, 4)
+          : []
+        const hasImage =
+          images.length > 0 ||
+          (Array.isArray(node.content) &&
+            node.content.some((block) => block && (block.type === 'image' || block.kind === 'image')))
+        return h(
+          'div',
+          { className: `qp-feed-row${node.kind === 'steering' ? ' is-steering' : ' is-user'}` },
+          h(
+            'div',
+            { className: 'qp-feed-meta' },
+            `${node.kind === 'steering' ? t('steering') : t('you')} · ${metaTime}`,
+          ),
+          images.length
+            ? h(
+                'div',
+                { className: 'qp-feed-images' },
+                images.map((block, index) =>
+                  h(FeedImage, { key: index, attachment: block.attachment, t }),
+                ),
+              )
+            : hasImage
+              ? h('span', { className: 'qp-feed-image-tag' }, t('imageOnly'))
+              : null,
+          h('div', { className: 'qp-feed-body' }, text || (hasImage ? '' : t('nonText'))),
+        )
+      }
+      if (node.kind === 'assistant') {
+        const blocks = Array.isArray(node.blocks) ? node.blocks : []
+        return h(
+          'div',
+          { className: 'qp-feed-row is-assistant' },
+          h(
+            'div',
+            { className: 'qp-feed-meta' },
+            `DSH · ${metaTime}${node.interrupted ? ` · ${t('interrupted')}` : ''}`,
+          ),
+          blocks.map((block, index) =>
+            h(AssistantBlockView, { key: index, block, t, streaming: false }),
+          ),
+        )
+      }
+      if (node.kind === 'tool-result') {
+        return h(
+          'div',
+          { className: `qp-tool-chip is-result${node.isError ? ' is-error' : ''}` },
+          h('span', { className: 'qp-tool-dot' }),
+          h(
+            'span',
+            null,
+            `${node.name || t('tool')} · ${node.isError ? t('toolFailed') : t('toolDone')}`,
+          ),
+        )
+      }
+      if (node.kind === 'turn-error') {
+        return h(
+          'div',
+          { className: 'qp-feed-row is-error' },
+          h('div', { className: 'qp-feed-meta' }, `DSH · ${metaTime}`),
+          h('div', { className: 'qp-feed-error' }, node.message || node.code || t('toolFailed')),
+        )
+      }
+      return null
+    })
+
+    function FeedSection({ t, state, onLoadOlder, followTick }) {
+      const feed = Array.isArray(state.feed) ? state.feed : []
+      const partial = state.partial || null
+      const connected = Boolean(state.sessionId)
+      const feedRef = useRef(null)
+      const contentRef = useRef(null)
+      const pinnedRef = useRef(true)
+      const anchorRef = useRef(null)
+      const userScrollRef = useRef(false)
+      const userTimer = useRef(0)
+      const followTimer = useRef(0)
+      const lastTopRef = useRef(0)
+      const [following, setFollowing] = useState(true)
+
+      const scrollToBottom = () => {
+        const element = feedRef.current
+        if (!element) return
+        element.scrollTop = element.scrollHeight
+        window.requestAnimationFrame(() => {
+          const current = feedRef.current
+          if (current) current.scrollTop = current.scrollHeight
+        })
+        if (followTimer.current) window.clearTimeout(followTimer.current)
+        followTimer.current = window.setTimeout(() => {
+          followTimer.current = 0
+          if (!pinnedRef.current) return
+          const current = feedRef.current
+          if (current) current.scrollTop = current.scrollHeight
+        }, 180)
+        if (!pinnedRef.current) {
+          pinnedRef.current = true
+          setFollowing(true)
+        }
+      }
+
+      useEffect(() => {
+        if (pinnedRef.current) scrollToBottom()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [feed, partial])
+
+      useEffect(() => {
+        scrollToBottom()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [followTick])
+
+      useEffect(
+        () => () => {
+          if (userTimer.current) window.clearTimeout(userTimer.current)
+          if (followTimer.current) window.clearTimeout(followTimer.current)
+        },
+        [],
+      )
+
+      useLayoutEffect(() => {
+        const element = feedRef.current
+        if (!element) return
+        if (anchorRef.current) {
+          element.scrollTop += element.scrollHeight - anchorRef.current.height
+          anchorRef.current = null
+        }
+      }, [feed.length])
+
+      useEffect(() => {
+        if (!state.loadingOlder && anchorRef.current) anchorRef.current = null
+      }, [state.loadingOlder])
+
+      useEffect(() => {
+        const element = feedRef.current
+        const content = contentRef.current
+        if (!element || !content || typeof window.ResizeObserver === 'undefined') return
+        const observer = new window.ResizeObserver(() => {
+          if (pinnedRef.current) element.scrollTop = element.scrollHeight
+        })
+        observer.observe(content)
+        return () => observer.disconnect()
+      }, [])
+
+      const markUserScroll = () => {
+        userScrollRef.current = true
+        if (userTimer.current) window.clearTimeout(userTimer.current)
+        userTimer.current = window.setTimeout(() => {
+          userScrollRef.current = false
+        }, 220)
+      }
+
+      const onScroll = () => {
+        const element = feedRef.current
+        if (!element) return
+        const top = element.scrollTop
+        const delta = top - lastTopRef.current
+        lastTopRef.current = top
+        if (!userScrollRef.current && delta < -2) markUserScroll()
+        const distance = element.scrollHeight - top - element.clientHeight
+        if (userScrollRef.current) {
+          const next = distance < 28
+          pinnedRef.current = next
+          setFollowing(next)
+        } else if (distance < 28 && !pinnedRef.current) {
+          pinnedRef.current = true
+          setFollowing(true)
+        }
+        if (element.scrollTop < 40 && state.hasMore && !state.loadingOlder && !anchorRef.current) {
+          anchorRef.current = { height: element.scrollHeight }
+          onLoadOlder()
+        }
+      }
+
+      return h(
+        'section',
+        { className: 'qp-section qp-feed-section' },
+        h(
+          'div',
+          { className: 'qp-section-title' },
+          h('span', null, t('live')),
+          h(
+            'span',
+            { className: 'qp-count' },
+            state.running ? t('running') : connected ? t('idle') : '',
+          ),
+        ),
+        connected
+          ? h(
+              React.Fragment,
+              null,
+              h(
+                'div',
+                {
+                  className: 'qp-feed',
+                  ref: feedRef,
+                  onScroll,
+                  onWheel: markUserScroll,
+                  onTouchMove: markUserScroll,
+                  onPointerDown: markUserScroll,
+                },
+                state.hasMore
+                  ? h(
+                      'div',
+                      { className: 'qp-feed-more' },
+                      state.loadingOlder ? t('loadingOlder') : t('scrollOlder'),
+                    )
+                  : feed.length
+                    ? h('div', { className: 'qp-feed-more' }, t('oldest'))
+                    : null,
+                h(
+                  'div',
+                  { className: 'qp-feed-content', ref: contentRef },
+                  feed.length === 0 && !partial
+                    ? h('div', { className: 'qp-feed-note' }, t('feedEmpty'))
+                    : feed.map((node) => h(FeedRow, { key: `${node.kind}:${node.seq}`, node, t })),
+                  partial
+                    ? h(
+                        'div',
+                        { className: 'qp-feed-row is-assistant is-streaming' },
+                        h('div', { className: 'qp-feed-meta' }, `DSH · ${t('streaming')}`),
+                        (partial.blocks || []).map((block, index) =>
+                          h(AssistantBlockView, {
+                            key: index,
+                            block,
+                            t,
+                            streaming: index === (partial.blocks || []).length - 1,
+                          }),
+                        ),
+                      )
+                    : state.running
+                      ? h(
+                          'div',
+                          { className: 'qp-feed-status' },
+                          h('span', { className: 'qp-feed-dot' }),
+                          t('thinking'),
+                        )
+                      : null,
+                ),
+              ),
+              !following
+                ? h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'qp-feed-jump',
+                      onClick: scrollToBottom,
+                      title: t('jumpLatest'),
+                    },
+                    t('jumpLatest'),
+                  )
+                : null,
+            )
+          : h('div', { className: 'qp-placeholder' }, t('feedNoSession')),
+      )
+    }
+
+    function draftStorageKey(sessionId) {
+      return `dsh.quick-panel.draft.${sessionId || 'none'}`
+    }
+
+    function loadDraftValue(key) {
+      try {
+        return window.sessionStorage.getItem(key) || ''
+      } catch (_error) {
+        return ''
+      }
+    }
+
+    function saveDraftValue(key, value) {
+      try {
+        if (value) window.sessionStorage.setItem(key, value)
+        else window.sessionStorage.removeItem(key)
+      } catch (_error) {
+        /* draft persistence is best effort */
+      }
+    }
+
+    function QuickInput({ t, state, onSend, onStop, onFlash, onSent }) {
+      const sessionKey = state.sessionId || 'none'
+      const [value, setValue] = useState(() => loadDraftValue(draftStorageKey(sessionKey)))
+
+      useEffect(() => {
+        setValue(loadDraftValue(draftStorageKey(sessionKey)))
+      }, [sessionKey])
+
+      const update = (next) => {
+        setValue(next)
+        saveDraftValue(draftStorageKey(sessionKey), next)
+      }
+
+      const send = (mode) => {
+        const text = value.trim()
+        if (!text) return
+        if (!state.sessionId || !state.canPrompt) {
+          onFlash(t('cannotSend'))
+          return
+        }
+        const previous = value
+        update('')
+        Promise.resolve(onSend(text, mode)).then(
+          (result) => {
+            if (result && result.ok) {
+              if (onSent) onSent()
+              onFlash(mode === 'steer' ? t('steered') : t('sent'))
+              return
+            }
+            update(previous)
+            onFlash(t('sendFailed'))
+          },
+          () => {
+            update(previous)
+            onFlash(t('sendFailed'))
+          },
+        )
+      }
+
+      const stop = () => {
+        Promise.resolve(onStop()).then(
+          (result) => onFlash(result && result.ok ? t('stopped') : t('stopFailed')),
+          () => onFlash(t('stopFailed')),
+        )
+      }
+
+      const disabled = !state.sessionId || !state.canPrompt
+      const placeholder = state.sessionId
+        ? disabled
+          ? t('cannotSend')
+          : t('inputPlaceholder')
+        : t('inputNoSession')
+
+      return h(
+        'div',
+        { className: 'qp-quick-wrap' },
+        h(
+          'div',
+          { className: 'qp-quick-box' },
+          h('textarea', {
+            className: 'qp-quick-input',
+            rows: Math.min(3, Math.max(1, value.split('\n').length)),
+            value,
+            placeholder,
+            disabled,
+            'aria-label': t('inputPlaceholder'),
+            onChange: (event) => update(event.target.value),
+            onKeyDown: (event) => {
+              if (event.key !== 'Enter' || event.shiftKey) return
+              if (event.nativeEvent && event.nativeEvent.isComposing) return
+              event.preventDefault()
+              if (disabled) {
+                onFlash(t('cannotSend'))
+                return
+              }
+              send(event.ctrlKey || event.metaKey ? 'steer' : 'queue')
+            },
+          }),
+          h(
+            'div',
+            { className: 'qp-quick-actions' },
+            state.running
+              ? h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'qp-stop-btn',
+                    onClick: stop,
+                    disabled: !state.canCancel,
+                    title: t('stop'),
+                    'aria-label': t('stop'),
+                  },
+                  h(IconStop, { size: 11 }),
+                )
+              : null,
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'qp-send-btn',
+                onClick: () => send('queue'),
+                disabled: disabled || !value.trim(),
+                title: t('send'),
+                'aria-label': t('send'),
+              },
+              h(IconSend, { size: 14 }),
+            ),
+          ),
+        ),
+        h(
+          'div',
+          { className: 'qp-quick-hint' },
+          disabled
+            ? state.sessionId
+              ? t('cannotSend')
+              : t('inputNoSession')
+            : state.running
+              ? t('hintRunning')
+              : t('hintIdle'),
+        ),
+      )
+    }
+
+    function Panel({ t, now, state, anchor, width, maxHeight, onDragStart, due, onSnooze, onComplete, schedule, openSchedule, loadOlder, sendPrompt, stopTurn }) {
+      const clock = clockOf(now)
+      const connected = Boolean(state.sessionId)
+      const todos = useSyncExternalStore(todoStore.subscribe, todoStore.getSnapshot)
+      const reminders = useSyncExternalStore(reminderStore.subscribe, reminderStore.getSnapshot)
+      const pending = todos.filter((todo) => !todo.done)
+      const ordered = [...pending, ...todos.filter((todo) => todo.done)]
+      const [flash, setFlash] = useState(null)
+      const flashTimer = useRef(0)
+      const [followTick, setFollowTick] = useState(0)
+
+      useEffect(
+        () => () => {
+          window.clearTimeout(flashTimer.current)
+        },
+        [],
+      )
+
+      const showFlash = (text) => {
+        setFlash(text)
+        window.clearTimeout(flashTimer.current)
+        flashTimer.current = window.setTimeout(() => setFlash(null), 2600)
+      }
+
+      const handoff = (todo) => {
+        if (todo.handedOff) {
+          todoStore.update(todo.id, { handedOff: false })
+          return
+        }
+        const actions = store.inputActions
+        if (!store.state.sessionId || !actions) {
+          showFlash(t('needSession'))
+          return
+        }
+        let span
+        try {
+          span = actions.captureInsertion()
+        } catch (_error) {
+          span = undefined
+        }
+        if (!span) {
+          showFlash(t('insertFailed'))
+          return
+        }
+        const prefix = Number.isFinite(span.start) && span.start > 0 ? '\n\n' : ''
+        let inserted = false
+        try {
+          inserted = actions.insertText(prefix + buildHandoff(t, todo), span)
+        } catch (_error) {
+          inserted = false
+        }
+        if (!inserted) {
+          showFlash(t('insertFailed'))
+          return
+        }
+        todoStore.update(todo.id, { handedOff: true })
+        showFlash(t('inserted'))
+      }
+
+      const copy = (todo) => {
+        const clipboard = window.navigator && window.navigator.clipboard
+        if (!clipboard || !clipboard.writeText) {
+          showFlash(t('copyFailed'))
+          return
+        }
+        clipboard.writeText(todo.text).then(
+          () => showFlash(t('copied')),
+          () => showFlash(t('copyFailed')),
+        )
+      }
+
+      const addReminder = (entry) => {
+        const id = reminderStore.add({ ...entry, dshTask: false })
+        showFlash(t('reminderAdded'))
+        if (!entry.dshTask) return
+        const api = schedule ? schedule() : null
+        if (!api || typeof api.create !== 'function' || !state.sessionId) {
+          showFlash(t('scheduleFailed'))
+          return
+        }
+        let timeZone = 'UTC'
+        try {
+          timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+        } catch (_error) {
+          /* fall back to UTC */
+        }
+        const date = new Date(entry.at)
+        const time = `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+        const dateText = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+        const timing = () => {
+          if (entry.repeat === 'none') {
+            return { kind: 'at', at: { date: dateText, time, time_zone: timeZone } }
+          }
+          if (entry.repeat === 'daily') {
+            return { kind: 'daily', daily: { time, time_zone: timeZone } }
+          }
+          return { kind: 'weekly', weekly: { time, time_zone: timeZone, weekdays: [1, 2, 3, 4, 5] } }
+        }
+        const payload = (value) => ({
+          title: entry.text.slice(0, 60),
+          prompt: entry.text,
+          timing: value,
+          target: { kind: 'session', sessionId: state.sessionId },
+        })
+        const fail = (result) => {
+          reminderStore.update(id, { dshTask: false })
+          let detail = ''
+          try {
+            if (result && result.error) {
+              detail = String(result.error.code || result.error.message || '')
+              if (result.error.details && result.error.details.code) {
+                detail += ` · ${result.error.details.code}`
+              }
+            }
+          } catch (_error) {
+            /* ignore */
+          }
+          try {
+            console.warn('quick-panel: schedule create failed', result)
+          } catch (_error) {
+            /* ignore */
+          }
+          showFlash(detail ? `${t('scheduleFailed')} (${detail})` : t('scheduleFailed'))
+        }
+        const succeed = () => {
+          reminderStore.update(id, { dshTask: true })
+          showFlash(t('scheduleCreated'))
+        }
+        const attempt = (value, canRetry) => {
+          let request
+          try {
+            request = api.create(payload(value))
+          } catch (error) {
+            fail(error)
+            return
+          }
+          Promise.resolve(request).then(
+            (result) => {
+              if (result && result.ok) {
+                succeed()
+                return
+              }
+              const code = result && result.error ? String(result.error.code || '') : ''
+              const detailCode =
+                result && result.error && result.error.details
+                  ? String(result.error.details.code || '')
+                  : ''
+              if (
+                canRetry &&
+                entry.repeat === 'none' &&
+                (code === 'schedule/input-invalid' ||
+                  detailCode === 'not_future' ||
+                  detailCode === 'invalid_time_zone')
+              ) {
+                attempt({ kind: 'at', at: new Date(entry.at).toISOString() }, false)
+                return
+              }
+              fail(result)
+            },
+            (error) => fail(error),
+          )
+        }
+        attempt(timing(), true)
+      }
+
+      return h(
+        'div',
+        { className: 'qp-panel-anchor', style: { left: anchor.cx, top: anchor.top } },
+        h(
+          'section',
+          {
+            className: 'qp-panel',
+            style: { width, maxHeight },
+            role: 'dialog',
+            'aria-label': t('panel'),
+            onKeyDown: (event) => {
+              if (event.key !== 'Escape') return
+              event.stopPropagation()
+              collapsePanel()
+            },
+          },
+          h(
+            'header',
+            {
+              className: 'qp-head',
+              onPointerDown: (event) => onDragStart(event, 'panel'),
+              title: t('dragHint'),
+            },
+            h(
+              'div',
+              { className: 'qp-head-top' },
+              h(
+                'div',
+                { className: 'qp-title' },
+                h('span', { className: 'qp-grip' }, h(IconGrip)),
+                h(IconPanel, { size: 14 }),
+                h('span', null, t('panel')),
+                h('span', { className: 'qp-badge' }, 'M6'),
+              ),
+              h(
+                'div',
+                { className: 'qp-head-actions', 'data-qp-no-drag': '' },
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'qp-iconbtn',
+                    onClick: () => {
+                      hostSync.openWindow().then((result) => {
+                        showFlash(result && result.ok ? t('windowOpened') : t('windowFailed'))
+                      })
+                    },
+                    title: t('openWindow'),
+                    'aria-label': t('openWindow'),
+                  },
+                  h(IconWindow, { size: 15 }),
+                ),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'qp-iconbtn',
+                    onClick: collapsePanel,
+                    title: t('collapse'),
+                    'aria-label': t('collapse'),
+                  },
+                  h(IconChevronDown, { size: 16 }),
+                ),
+              ),
+            ),
+            h(
+              'div',
+              { className: 'qp-clock' },
+              h('span', null, `${clock.hh}:${clock.mm}`),
+              h('span', { className: 'qp-clock-sec' }, `:${clock.ss}`),
+            ),
+            h('div', { className: 'qp-date' }, clock.date),
+            h(
+              'div',
+              { className: 'qp-head-status' },
+              h('span', { className: state.running ? 'qp-dot is-live' : 'qp-dot' }),
+              h(
+                'span',
+                null,
+                state.running ? t('running') : connected ? t('connected') : t('noSessionShort'),
+              ),
+            ),
+          ),
+          due
+            ? h(
+                'div',
+                { className: 'qp-due-banner' },
+                h(IconBell, { size: 12 }),
+                h('span', { className: 'qp-due-banner-text', title: due.text }, due.text),
+                h(
+                  'button',
+                  { type: 'button', className: 'qp-due-banner-btn', onClick: onSnooze },
+                  t('snooze10'),
+                ),
+                h(
+                  'button',
+                  { type: 'button', className: 'qp-due-banner-btn is-primary', onClick: onComplete },
+                  t('markReminderDone'),
+                ),
+              )
+            : null,
+          h(
+            'div',
+            { className: 'qp-capture-wrap' },
+            h(
+              'div',
+              { className: 'qp-section-title' },
+              h('span', null, t('todos')),
+              h('span', { className: 'qp-count' }, `${pending.length}/${todos.length}`),
+            ),
+            h(Capture, {
+              t,
+              onAdd: (lines) => {
+                todoStore.addMany(lines)
+              },
+            }),
+            todos.length ? h('div', { className: 'qp-hint' }, t('handoffHint')) : null,
+          ),
+          h(
+            'div',
+            { className: 'qp-body' },
+            todos.length === 0
+              ? h(
+                  'div',
+                  { className: 'qp-empty' },
+                  h('div', { className: 'qp-empty-title' }, t('emptyTitle')),
+                  h('div', null, t('emptyHint')),
+                )
+              : h(
+                  'div',
+                  { className: 'qp-todo-list' },
+                  ordered.map((todo, index) =>
+                    h(TodoRow, {
+                      key: todo.id,
+                      todo,
+                      index,
+                      t,
+                      onHandoff: handoff,
+                      onDone: (item) => todoStore.update(item.id, { done: !item.done }),
+                      onEdit: (id, text) => todoStore.update(id, { text }),
+                      onDelete: (item) => {
+                        todoStore.remove(item.id)
+                        showFlash(t('deleted'))
+                      },
+                      onCopy: copy,
+                    }),
+                  ),
+                ),
+            h(ReminderSection, {
+              t,
+              now,
+              reminders,
+              dueId: due ? due.id : null,
+              sessionId: state.sessionId,
+              schedule,
+              openSchedule,
+              onAdd: addReminder,
+              onRemove: (id) => reminderStore.remove(id),
+            }),
+            h(FeedSection, { t, state, onLoadOlder: loadOlder, followTick }),
+          ),
+          h(
+            'footer',
+            { className: 'qp-foot' },
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'qp-window-row',
+                onClick: () => {
+                  hostSync.openWindow().then((result) => {
+                    showFlash(result && result.ok ? t('windowOpened') : t('windowFailed'))
+                  })
+                },
+              },
+              h(IconWindow, { size: 13 }),
+              h('span', null, t('openWindow')),
+            ),
+            h(QuickInput, {
+              t,
+              state,
+              onSend: sendPrompt,
+              onStop: stopTurn,
+              onFlash: showFlash,
+              onSent: () => setFollowTick((value) => value + 1),
+            }),
+            h(
+              'div',
+              { className: 'qp-foot-meta' },
+              h('span', null, t('version')),
+              h('span', null, t('esc')),
+            ),
+          ),
+          flash ? h('div', { className: 'qp-flash', role: 'status' }, flash) : null,
+        ),
+      )
+    }
+
+    // ------------------------------------------------------- sidebar footer
+
+    function FooterAction({ t, wide }) {
+      const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
+      const open = state.mode === 'panel'
+      return h(
+        'button',
+        {
+          type: 'button',
+          className: wide ? 'qp-side-btn is-wide' : 'qp-side-btn',
+          onClick: togglePanel,
+          title: t('open'),
+          'aria-label': t('open'),
+          'aria-pressed': open,
+        },
+        h(IconPanel, { size: 17 }),
+        state.bridgeReady ? h('span', { className: 'qp-side-dot' }) : null,
+      )
+    }
+
+    // ---------------------------------------------------- composer bridge
+
+    function Bridge({ slot, t }) {
+      const sessionId = slot.sessionId || null
+      const inputActions = slot.inputActions || null
+      const canPrompt = typeof slot.useAccess === 'function' ? Boolean(slot.useAccess('session/prompt')) : false
+      const canCancel = typeof slot.useAccess === 'function' ? Boolean(slot.useAccess('session/cancel')) : false
+
+      useEffect(() => {
+        store.inputActions = inputActions
+        store.patch({ bridgeReady: Boolean(inputActions) })
+      }, [inputActions])
+
+      useEffect(() => {
+        store.patch({ canPrompt: Boolean(canPrompt), canCancel: Boolean(canCancel) })
+      }, [canPrompt, canCancel])
+
+      useEffect(() => {
+        store.patch({ sessionId })
+        hostSync.setSession(sessionId)
+        return () => {
+          if (store.state.sessionId !== sessionId) return
+          hostSync.setSession(null)
+          store.inputActions = null
+          store.patch({
+            sessionId: null,
+            bridgeReady: false,
+            running: false,
+            feed: [],
+            partial: null,
+            latest: '',
+            loadingOlder: false,
+            hasMore: false,
+            canPrompt: false,
+            canCancel: false,
+          })
+        }
+      }, [sessionId])
+
+      useEffect(() => {
+        if (!sessionId) return undefined
+        const report = () => {
+          if (document.visibilityState === 'hidden') return
+          if (store.state.sessionId !== sessionId) return
+          hostSync.setSession(sessionId)
+        }
+        window.addEventListener('focus', report)
+        document.addEventListener('visibilitychange', report)
+        report()
+        return () => {
+          window.removeEventListener('focus', report)
+          document.removeEventListener('visibilitychange', report)
+        }
+      }, [sessionId])
+
+      return h(
+        'button',
+        {
+          type: 'button',
+          className: 'qp-composer-btn',
+          onClick: openPanel,
+          title: t('open'),
+          'aria-label': t('open'),
+        },
+        h(IconPanel, { size: 16 }),
+      )
+    }
+
+    function StatusBridge({ slot }) {
+      const useSession = slot.useSession
+      const flags =
+        typeof useSession === 'function'
+          ? useSession((snapshot) =>
+              snapshot
+                ? (snapshot.running ? 1 : 0) |
+                  (snapshot.loadingOlder ? 2 : 0) |
+                  (snapshot.hasMore ? 4 : 0)
+                : 0,
+            )
+          : 0
+      const running = Boolean(flags & 1)
+      const loadingOlder = Boolean(flags & 2)
+      const hasMore = Boolean(flags & 4)
+      useEffect(() => {
+        store.patch({ running, loadingOlder, hasMore })
+      }, [running, loadingOlder, hasMore])
+      return null
+    }
+
+    function useNoProjection() {
+      return null
+    }
+
+    function UsageBridge({ slot }) {
+      const useProjection =
+        typeof slot.useProjection === 'function' ? slot.useProjection : useNoProjection
+      const tokenUsage = useProjection('tokenUsage')
+      const stats = useProjection('sessionStats')
+      const contextPressure = useProjection('contextPressure')
+      const workingDirectory = useProjection('workingDirectory')
+      const modelSelection = useProjection('modelSelection')
+      useEffect(() => {
+        const pressure =
+          contextPressure && contextPressure.val && typeof contextPressure.val === 'object'
+            ? contextPressure.val
+            : contextPressure
+        const directoryValue =
+          workingDirectory && workingDirectory.val !== undefined
+            ? workingDirectory.val
+            : workingDirectory
+        const workingDirectoryPath =
+          typeof directoryValue === 'string'
+            ? directoryValue
+            : directoryValue && typeof directoryValue.path === 'string'
+              ? directoryValue.path
+              : ''
+        const selectionValue =
+          modelSelection && modelSelection.val !== undefined ? modelSelection.val : modelSelection
+        const selection =
+          selectionValue && typeof selectionValue === 'object'
+            ? selectionValue.next || selectionValue.pending || selectionValue.lastUsed || null
+            : null
+        const model = selection && typeof selection.model === 'string' ? selection.model : ''
+        const modelProvider =
+          selection && typeof selection.provider === 'string' ? selection.provider : ''
+        const reasoningEffort =
+          selection && typeof selection.reasoningEffort === 'string'
+            ? selection.reasoningEffort
+            : ''
+        const contextWindow =
+          pressure && Number.isFinite(pressure.contextWindow) && pressure.contextWindow > 0
+            ? pressure.contextWindow
+            : 0
+        const contextTokens =
+          pressure &&
+          Number.isFinite(
+            pressure.projectedTokens ?? pressure.pressureTokens ?? pressure.surfaceTokens,
+          )
+            ? Math.max(
+                0,
+                pressure.projectedTokens ?? pressure.pressureTokens ?? pressure.surfaceTokens,
+              )
+            : 0
+        const contextPercent =
+          contextWindow > 0 && contextTokens >= 0
+            ? Math.min(100, (contextTokens / contextWindow) * 100)
+            : null
+        const contextData = {
+          ...(contextPercent === null ? {} : { contextPercent }),
+          contextTokens,
+          contextWindow,
+          workingDirectory: workingDirectoryPath,
+          model,
+          modelProvider,
+          reasoningEffort,
+        }
+        const totals =
+          tokenUsage && tokenUsage.totals && typeof tokenUsage.totals === 'object'
+            ? tokenUsage.totals
+            : tokenUsage
+        if (!totals || typeof totals !== 'object') {
+          store.patch({
+            usage: contextPercent === null
+              ? null
+              : {
+                  ...contextData,
+                  sessionKnown: false,
+                  sessionTokens: 0,
+                  sessionOutputTokens: 0,
+                  tps: 0,
+                  at: Date.now(),
+                },
+          })
+          return
+        }
+        const count = (value) => (Number.isFinite(value) && value > 0 ? Math.floor(value) : 0)
+        const sessionTokens =
+          count(totals.uncachedInputTokens) +
+          count(totals.cacheReadTokens) +
+          count(totals.cacheWriteTokens) +
+          count(totals.outputTokens)
+        const sessionOutputTokens = count(totals.outputTokens)
+        const tps =
+          stats &&
+          Number.isFinite(stats.decodeMs) &&
+          stats.decodeMs > 0 &&
+          Number.isFinite(stats.decodeTokens)
+            ? Math.max(0, stats.decodeTokens / (stats.decodeMs / 1000))
+            : 0
+        store.patch({
+          usage: {
+            sessionTokens,
+            sessionOutputTokens,
+            tps,
+            at: Date.now(),
+            ...contextData,
+          },
+        })
+      }, [tokenUsage, stats, contextPressure, workingDirectory, modelSelection])
+      return null
+    }
+
+    function FeedBridge({ slot }) {
+      const useChat = slot.useChat
+      const legacy =
+        typeof useChat === 'function' ? useChat((snapshot) => (snapshot ? snapshot.legacy : null)) : null
+      const latestRef = useRef(legacy)
+      latestRef.current = legacy
+      const timer = useRef(0)
+
+      useEffect(() => {
+        if (timer.current) return
+        timer.current = window.setTimeout(() => {
+          timer.current = 0
+          const value = latestRef.current
+          const nodes = value && Array.isArray(value.nodes) ? value.nodes : []
+          const partial = value && value.partial ? value.partial : null
+          store.patch({ feed: nodes, partial, latest: latestText(nodes, partial) })
+        }, 90)
+      }, [legacy])
+
+      useEffect(
+        () => () => {
+          if (timer.current) {
+            window.clearTimeout(timer.current)
+            timer.current = 0
+          }
+        },
+        [],
+      )
+
+      return null
+    }
+
+    // ---------------------------------------------------------------- css
+
+    const CSS = `
+.qp-island-anchor,.qp-panel-anchor{position:fixed;transform:translateX(-50%);z-index:60;pointer-events:none}
+.qp-island{pointer-events:auto;-webkit-app-region:no-drag;display:flex;align-items:center;gap:9px;height:40px;max-width:min(520px,62vw);padding:0 13px 0 14px;border-radius:999px;border:1px solid var(--dsw-alias-border-l1,#2c3340);background:var(--dsw-alias-bg-layer-1,#1b1f27);color:var(--dsw-alias-label-primary,#e9ecf1);font:inherit;font-size:12px;line-height:1;cursor:grab;box-shadow:0 10px 30px rgb(0 0 0 / .18),0 1px 2px rgb(0 0 0 / .12);touch-action:none;user-select:none;animation:qp-pop .18s cubic-bezier(.22,1,.36,1);transition:background .18s ease,box-shadow .18s ease}
+.qp-island:active{cursor:grabbing}
+.qp-island:hover{background:var(--dsw-alias-bg-layer-2,#22262e)}
+@keyframes qp-pop{from{opacity:0;transform:translateY(-4px) scale(.96)}to{opacity:1;transform:none}}
+.qp-dot{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--dsw-alias-state-idle-primary,#6b7483);flex:none;box-sizing:border-box}
+.qp-dot.is-live{border-color:transparent;background:var(--dsw-alias-state-success-primary,#3ddc97);box-shadow:0 0 0 4px rgb(61 220 151 / .16);animation:qp-breathe 1.8s ease-in-out infinite}
+@keyframes qp-breathe{0%,100%{box-shadow:0 0 0 3px rgb(61 220 151 / .14)}50%{box-shadow:0 0 0 7px rgb(61 220 151 / .05)}}
+.qp-island-brand{font-weight:600;white-space:nowrap}
+.qp-island-sep{width:1px;height:12px;background:var(--dsw-alias-border-l1,#2c3340);flex:none}
+.qp-island-text{color:var(--dsw-alias-label-secondary,#98a2b3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;min-width:0}
+.qp-island-time{color:var(--dsw-alias-label-secondary,#98a2b3);font-variant-numeric:tabular-nums;margin-left:2px}
+.qp-panel{pointer-events:auto;position:relative;display:flex;flex-direction:column;border-radius:18px;border:1px solid var(--dsw-alias-border-l1,#2b3039);background:var(--dsw-alias-bg-layer-1,#1a1d24);color:var(--dsw-alias-label-primary,#e9ecf1);box-shadow:0 24px 64px rgb(0 0 0 / .22),0 2px 8px rgb(0 0 0 / .1);overflow:hidden;font-size:13px;outline:none;transform-origin:top center;animation:qp-drop .26s cubic-bezier(.22,1,.36,1)}
+@keyframes qp-drop{from{opacity:0;transform:translateY(-8px) scale(.97)}to{opacity:1;transform:none}}
+.qp-head{padding:12px 16px 12px;border-bottom:1px solid var(--dsw-alias-border-l1,#2b3039);background:linear-gradient(180deg,var(--dsw-alias-bg-layer-2,#21252d) 0%,transparent 100%);cursor:grab;touch-action:none;user-select:none}
+.qp-head:active{cursor:grabbing}
+.qp-head-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.qp-title{display:flex;align-items:center;gap:7px;font-size:11px;letter-spacing:.06em;color:var(--dsw-alias-label-secondary,#98a2b3);font-weight:600}
+.qp-grip{display:inline-flex;color:var(--dsw-alias-label-secondary,#98a2b3);opacity:.55;margin-right:1px}
+.qp-badge{font-size:9px;padding:2px 6px;border-radius:999px;background:var(--dsw-alias-bg-layer-2,#22262e);border:1px solid var(--dsw-alias-border-l1,#2b3039);color:var(--dsw-alias-label-secondary,#98a2b3);font-weight:600;letter-spacing:.04em}
+.qp-head-actions{display:flex;gap:2px;cursor:default}
+.qp-iconbtn{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary,#98a2b3);cursor:pointer}
+.qp-iconbtn:hover{background:var(--dsw-alias-bg-layer-2,#22262e);color:var(--dsw-alias-label-primary,#e9ecf1)}
+.qp-clock{display:flex;align-items:baseline;gap:1px;font-size:30px;font-weight:600;letter-spacing:-.01em;line-height:1.1;margin-top:8px;font-variant-numeric:tabular-nums}
+.qp-clock-sec{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary,#98a2b3);margin-left:2px}
+.qp-date{margin-top:4px;font-size:11px;color:var(--dsw-alias-label-secondary,#98a2b3)}
+.qp-head-status{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:10.5px;color:var(--dsw-alias-label-secondary,#98a2b3)}
+.qp-capture-wrap{padding:10px 16px 8px;border-bottom:1px solid var(--dsw-alias-border-l1,#2b3039);background:var(--dsw-alias-bg-base,#15181d)}
+.qp-section{margin-top:14px}
+.qp-section-title{font-size:10.5px;font-weight:600;letter-spacing:.08em;color:var(--dsw-alias-label-secondary,#98a2b3);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between}
+.qp-count{font-size:10px;color:var(--dsw-alias-label-secondary,#98a2b3);opacity:.75;font-variant-numeric:tabular-nums}
+.qp-capture{display:flex;align-items:flex-end;gap:6px}
+.qp-capture-input{flex:1;min-width:0;min-height:34px;max-height:86px;resize:none;border:1px solid var(--dsw-alias-border-l1,#2b3039);border-radius:9px;background:var(--dsw-alias-bg-layer-2,#22262e);color:var(--dsw-alias-label-primary,#e9ecf1);font:inherit;font-size:12px;line-height:1.45;padding:7px 10px;outline:none;box-sizing:border-box}
+.qp-capture-input::placeholder{color:var(--dsw-alias-label-secondary,#98a2b3);opacity:.7}
+.qp-capture-input:focus{border-color:var(--dsw-alias-brand-primary,#4d6bfe)}
+.qp-add{width:34px;height:34px;flex:none;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:9px;background:#e7cd8b !important;color:#2a2313 !important;cursor:pointer}
+.qp-add:disabled{opacity:.35;cursor:default}
+.qp-add:hover:not(:disabled){filter:brightness(1.06)}
+.qp-hint{margin-top:6px;font-size:10.5px;line-height:1.4;color:var(--dsw-alias-label-secondary,#98a2b3);opacity:.8}
+.qp-body{flex:1;min-height:0;overflow:auto;padding:2px 16px 12px}
+.qp-todo{display:flex;align-items:center;gap:8px;min-height:38px;padding:5px 0;border-bottom:1px solid color-mix(in srgb,var(--dsw-alias-border-l1,#2b3039) 55%,transparent)}
+.qp-todo:last-child{border-bottom:0}
+.qp-todo-index{flex:none;width:16px;text-align:right;color:var(--dsw-alias-label-tertiary,#6f7a8c);font-size:10.5px;font-variant-numeric:tabular-nums}
+.qp-todo-check{width:18px;height:18px;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:5px;border:1.5px solid var(--dsw-alias-border-l2,#3a4150);background:transparent;color:#fff;cursor:pointer;padding:0}
+.qp-todo-check.is-on{background:var(--dsw-alias-brand-primary,#4d6bfe);border-color:transparent}
+.qp-todo-main{flex:1;min-width:0;display:flex;align-items:center;gap:6px;cursor:text}
+.qp-todo-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;line-height:1.5}
+.qp-todo.is-done .qp-todo-text{text-decoration:line-through;color:var(--dsw-alias-label-secondary,#98a2b3)}
+.qp-todo.is-done{opacity:.72}
+.qp-tag{flex:none;font-size:9px;padding:1px 5px;border-radius:4px;background:color-mix(in srgb,var(--dsw-alias-brand-primary,#4d6bfe) 16%,transparent);color:var(--dsw-alias-brand-primary,#4d6bfe);font-weight:600}
+.qp-todo-actions{display:flex;align-items:center;gap:1px;opacity:0;transition:opacity .15s ease}
+.qp-todo:hover .qp-todo-actions,.qp-todo:focus-within .qp-todo-actions{opacity:1}
+.qp-mini{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary,#98a2b3);cursor:pointer;padding:0}
+.qp-mini:hover{background:var(--dsw-alias-bg-layer-2,#22262e);color:var(--dsw-alias-label-primary,#e9ecf1)}
+.qp-done-dot{width:19px;height:19px;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1.5px solid var(--dsw-alias-border-l2,#3a4150);background:transparent;color:#08130f;cursor:pointer;padding:0}
+.qp-done-dot.is-on{background:var(--dsw-alias-state-success-primary,#3ddc97);border-color:transparent}
+.qp-edit-input{flex:1;min-width:0;height:28px;border:1px solid var(--dsw-alias-brand-primary,#4d6bfe);border-radius:6px;background:var(--dsw-alias-bg-layer-2,#22262e);color:var(--dsw-alias-label-primary,#e9ecf1);font:inherit;font-size:12.5px;padding:0 8px;outline:none}
+.qp-empty{padding:18px 4px;color:var(--dsw-alias-label-secondary,#98a2b3);font-size:11.5px;line-height:1.6;text-align:center}
+.qp-empty-title{color:var(--dsw-alias-label-primary,#e9ecf1);font-size:12.5px;font-weight:600;margin-bottom:4px}
+.qp-placeholder{font-size:11.5px;color:var(--dsw-alias-label-secondary,#98a2b3);opacity:.8;line-height:1.5;padding:2px 0}
+.qp-foot{padding:10px 16px 12px;border-top:1px solid var(--dsw-alias-border-l1,#2b3039);background:var(--dsw-alias-bg-layer-2,#20242b)}
+.qp-input{height:38px;display:flex;align-items:center;padding:0 12px;border-radius:10px;border:1px dashed var(--dsw-alias-border-l2,#3a4150);color:var(--dsw-alias-label-secondary,#98a2b3);font-size:12px;background:var(--dsw-alias-bg-layer-1,#1a1d24);cursor:not-allowed;opacity:.8}
+.qp-foot-meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:10px;color:var(--dsw-alias-label-secondary,#98a2b3);opacity:.75}
+.qp-flash{position:absolute;left:16px;right:16px;bottom:96px;z-index:5;padding:8px 12px;border-radius:10px;border:1px solid var(--dsw-alias-border-l1,#2b3039);background:var(--dsw-alias-bg-overlay,#262b35);color:var(--dsw-alias-label-primary,#e9ecf1);font-size:11.5px;line-height:1.4;box-shadow:0 8px 24px rgb(0 0 0 / .22);animation:qp-fade .16s ease}
+@keyframes qp-fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.qp-section-action{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary,#98a2b3);cursor:pointer;padding:0}
+.qp-section-action:hover{background:var(--dsw-alias-bg-layer-2,#22262e);color:var(--dsw-alias-label-primary,#e9ecf1)}
+.qp-reminder-list{display:flex;flex-direction:column}
+.qp-reminder{display:flex;align-items:center;gap:8px;min-height:32px;padding:3px 0;border-bottom:1px solid color-mix(in srgb,var(--dsw-alias-border-l1,#2b3039) 55%,transparent);font-size:12px}
+.qp-reminder:last-child{border-bottom:0}
+.qp-reminder.is-past{opacity:.65}
+.qp-reminder.is-due{color:var(--dsw-alias-state-warn-primary,#f5b544)}
+.qp-reminder-index{flex:none;width:16px;text-align:right;color:var(--dsw-alias-label-tertiary,#6f7a8c);font-size:10.5px;font-variant-numeric:tabular-nums}
+.qp-reminder-time{flex:none;min-width:64px;font-size:10.5px;color:var(--dsw-alias-label-secondary,#98a2b3);font-variant-numeric:tabular-nums}
+.qp-reminder-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qp-reminder-form{margin:6px 0 8px;padding:10px;border:1px solid var(--dsw-alias-border-l1,#2b3039);border-radius:10px;background:var(--dsw-alias-bg-layer-2,#22262e);display:flex;flex-direction:column;gap:8px}
+.qp-form-input{height:30px;min-width:0;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l1,#2b3039);border-radius:7px;background:var(--dsw-alias-bg-layer-1,#1a1d24);color:var(--dsw-alias-label-primary,#e9ecf1);font:inherit;font-size:12px;padding:0 8px;outline:none}
+.qp-form-input:focus{border-color:var(--dsw-alias-brand-primary,#4d6bfe)}
+.qp-form-row{display:flex;gap:8px;align-items:center}
+.qp-form-row .qp-form-input{flex:1}
+.qp-form-select{height:30px;flex:none;border:1px solid var(--dsw-alias-border-l1,#2b3039);border-radius:7px;background:var(--dsw-alias-bg-layer-1,#1a1d24);color:var(--dsw-alias-label-primary,#e9ecf1);font:inherit;font-size:12px;padding:0 6px;outline:none}
+.qp-form-error{font-size:10.5px;color:var(--dsw-alias-state-error-primary,#ff6b6b)}
+.qp-btn{height:30px;min-width:56px;padding:0 12px;border-radius:7px;border:1px solid var(--dsw-alias-border-l1,#2b3039);background:var(--dsw-alias-bg-layer-1,#1a1d24);color:var(--dsw-alias-label-primary,#e9ecf1);font:inherit;font-size:11.5px;cursor:pointer}
+.qp-btn:hover{background:var(--dsw-alias-bg-layer-2,#22262e)}
+.qp-btn.is-primary{background:#e7cd8b !important;border-color:transparent !important;color:#2a2313 !important}
+.qp-btn:disabled{opacity:.45;cursor:default}
+.qp-due-card{pointer-events:auto;width:340px;max-width:min(86vw,380px);padding:12px 14px 10px;border-radius:16px;border:1px solid var(--dsw-alias-border-l1,#2b3039);background:var(--dsw-alias-bg-layer-1,#1a1d24);color:var(--dsw-alias-label-primary,#e9ecf1);box-shadow:0 20px 50px rgb(0 0 0 / .26),0 2px 8px rgb(0 0 0 / .1);animation:qp-drop .22s cubic-bezier(.22,1,.36,1);cursor:pointer}
+.qp-due-head{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:600;color:var(--dsw-alias-state-warn-primary,#f5b544)}
+.qp-due-text{margin-top:5px;font-size:12.5px;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.qp-due-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:10px}
+.qp-due-actions button{height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--dsw-alias-border-l1,#2b3039);background:var(--dsw-alias-bg-layer-2,#22262e);color:var(--dsw-alias-label-primary,#e9ecf1);font:inherit;font-size:11px;cursor:pointer}
+.qp-due-actions button.is-primary{background:#e7cd8b !important;border-color:transparent !important;color:#2a2313 !important}
+.qp-due-banner{display:flex;align-items:center;gap:7px;margin:10px 16px 0;padding:7px 9px;border-radius:10px;border:1px solid color-mix(in srgb,var(--dsw-alias-state-warn-primary,#f5b544) 35%,transparent);background:color-mix(in srgb,var(--dsw-alias-state-warn-primary,#f5b544) 10%,transparent);color:var(--dsw-alias-label-primary,#e9ecf1);font-size:11px}
+.qp-due-banner-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qp-due-banner-btn{height:24px;padding:0 8px;border-radius:6px;border:1px solid var(--dsw-alias-border-l1,#2b3039);background:var(--dsw-alias-bg-layer-1,#1a1d24);color:var(--dsw-alias-label-primary,#e9ecf1);font:inherit;font-size:10.5px;cursor:pointer;flex:none}
+.qp-due-banner-btn.is-primary{background:#e7cd8b !important;border-color:transparent !important;color:#2a2313 !important}
+.qp-panel ::selection{background:rgb(246 227 161 / .32);color:var(--dsw-alias-label-primary,#e9ecf1)}
+.qp-capture-input,.qp-edit-input,.qp-form-input,.qp-form-select{caret-color:#e3c76d}
+.qp-capture-input:focus,.qp-capture-input:focus-visible,.qp-edit-input:focus,.qp-form-input:focus,.qp-form-select:focus{outline:none !important;border-color:#d9b85e !important;box-shadow:0 0 0 3px rgb(246 227 161 / .18)}
+.qp-capture-input:focus,.qp-edit-input:focus{background-color:var(--dsw-alias-bg-layer-2,#22262e) !important}
+.qp-form-input:focus,.qp-form-select:focus{background-color:var(--dsw-alias-bg-layer-1,#1a1d24) !important}
+.qp-date-input{width:100%;flex:none;min-width:0}
+.qp-clockpick{width:100%;box-sizing:border-box;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:8px 10px;border-radius:12px;border:1px solid var(--dsw-alias-border-l1,#2b3039);background:var(--dsw-alias-bg-layer-1,#1a1d24);perspective:320px}
+.qp-wheel{display:flex;flex-direction:column;align-items:center;width:100%;border-radius:8px;outline:none;user-select:none;touch-action:none;cursor:ns-resize}
+.qp-wheel:focus-visible{box-shadow:0 0 0 2px rgb(246 227 161 / .4)}
+.qp-wheel-step{border:0;background:transparent;color:var(--dsw-alias-label-secondary,#98a2b3);font:inherit;font-size:12px;line-height:1.5;padding:0;cursor:pointer;opacity:.5;font-variant-numeric:tabular-nums}
+.qp-wheel-step:hover{opacity:.95;color:var(--dsw-alias-label-primary,#e9ecf1)}
+.qp-wheel-current{font-size:32px;font-weight:600;line-height:1.15;color:var(--dsw-alias-label-primary,#e9ecf1);font-variant-numeric:tabular-nums;transform-origin:center;animation:qp-flip .22s ease}
+.qp-clockpick-colon{font-size:22px;color:var(--dsw-alias-label-secondary,#98a2b3);padding:0 6px}
+@keyframes qp-flip{from{opacity:.15;transform:rotateX(-65deg)}to{opacity:1;transform:rotateX(0)}}
+.qp-form-label{flex:none;width:36px;font-size:11px;color:var(--dsw-alias-label-secondary,#98a2b3)}
+.qp-checkline{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--dsw-alias-label-secondary,#98a2b3);line-height:1.4;cursor:pointer;user-select:none}
+.qp-checkline-box{width:14px;height:14px;margin:0;flex:none;accent-color:#e7cd8b;cursor:pointer}
+.qp-checkline-hint{font-size:10px;opacity:.7}
+.qp-tag.is-link{cursor:pointer;border:0;font:inherit;font-size:9px;font-weight:600;padding:1px 5px;line-height:1.4}
+.qp-link-btn{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:4px 0;border:0;background:transparent;color:var(--dsw-alias-brand-primary,#4d6bfe);font:inherit;font-size:10.5px;cursor:pointer;text-align:left}
+.qp-link-btn:hover{text-decoration:underline}
+.qp-feed-section{margin-top:14px;position:relative}
+.qp-feed{height:240px;overflow-y:auto;overscroll-behavior:contain;overflow-anchor:none;border:1px solid var(--dsw-alias-border-l1,#2b3039);border-radius:10px;background:var(--dsw-alias-bg-layer-1,#1a1d24);padding:6px 10px 14px;scrollbar-width:thin}
+.qp-feed-more{font-size:9.5px;color:var(--dsw-alias-label-secondary,#98a2b3);text-align:center;padding:2px 0 6px;opacity:.7}
+.qp-feed-note{font-size:10.5px;color:var(--dsw-alias-label-secondary,#98a2b3);padding:10px 0;text-align:center}
+.qp-feed-row{padding:6px 0;border-bottom:1px solid color-mix(in srgb,var(--dsw-alias-border-l1,#2b3039) 50%,transparent);font-size:11.5px;line-height:1.55;content-visibility:auto;contain-intrinsic-size:auto 52px}
+.qp-feed-row:last-child{border-bottom:0}
+.qp-feed-row.is-user{border-left:2px solid color-mix(in srgb,var(--dsw-alias-brand-primary,#4d6bfe) 55%,transparent);padding-left:8px;margin-left:-2px}
+.qp-feed-row.is-steering{border-left:2px solid color-mix(in srgb,var(--dsw-alias-state-warn-primary,#f5b544) 55%,transparent);padding-left:8px;margin-left:-2px}
+.qp-feed-meta{font-size:9px;font-weight:600;color:var(--dsw-alias-label-secondary,#98a2b3);margin-bottom:2px;letter-spacing:.02em}
+.qp-feed-body,.qp-feed-text{white-space:pre-wrap;word-break:break-word;color:var(--dsw-alias-label-primary,#e9ecf1)}
+.qp-feed-image-tag{display:inline-block;margin-bottom:3px;padding:1px 6px;border:1px solid color-mix(in srgb,var(--dsw-alias-brand-primary,#4d6bfe) 32%,transparent);border-radius:5px;color:var(--dsw-alias-label-secondary,#98a2b3);font-size:9px;line-height:1.5}
+.qp-feed-images{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0}
+.qp-feed-image{width:104px;height:76px;object-fit:cover;border-radius:7px;border:1px solid color-mix(in srgb,var(--dsw-alias-border-l1,#2b3039) 80%,transparent);background:var(--dsw-alias-bg-layer-2,#22262e);display:block}
+.qp-feed-text>span{white-space:pre-wrap}
+.qp-reasoning{margin:4px 0;padding:5px 8px;border-left:2px solid color-mix(in srgb,var(--dsw-alias-state-warn-primary,#f5b544) 45%,transparent);background:color-mix(in srgb,var(--dsw-alias-state-warn-primary,#f5b544) 7%,transparent);border-radius:0 7px 7px 0}
+.qp-reasoning-label{font-size:8.5px;font-weight:600;color:var(--dsw-alias-label-secondary,#98a2b3);margin-bottom:2px}
+.qp-reasoning-text{font-size:10px;line-height:1.5;color:var(--dsw-alias-label-secondary,#98a2b3);max-height:110px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.qp-tool-chip{display:inline-flex;align-items:center;gap:5px;margin:3px 4px 3px 0;padding:2px 7px;border:1px solid var(--dsw-alias-border-l1,#2b3039);border-radius:6px;background:var(--dsw-alias-bg-layer-2,#22262e);font-size:9.5px;color:var(--dsw-alias-label-secondary,#98a2b3);max-width:100%}
+.qp-tool-chip.is-result{display:flex;margin:4px 0;width:fit-content}
+.qp-tool-chip.is-error{color:var(--dsw-alias-state-error-primary,#ff6b6b);border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary,#ff6b6b) 35%,transparent)}
+.qp-tool-dot{width:5px;height:5px;border-radius:50%;background:var(--dsw-alias-brand-primary,#4d6bfe);flex:none}
+.qp-tool-chip.is-error .qp-tool-dot{background:var(--dsw-alias-state-error-primary,#ff6b6b)}
+.qp-code{margin:5px 0;border:1px solid #2a303b;border-radius:8px;background:#12151b;overflow:hidden}
+.qp-code-head{padding:3px 8px;border-bottom:1px solid #232935;font-size:8.5px;color:var(--dsw-alias-label-secondary,#98a2b3)}
+.qp-code pre{margin:0;padding:6px 8px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px;line-height:1.5;color:#c9d1d9;white-space:pre;overflow:auto;max-height:220px}
+.qp-caret{display:inline-block;width:5px;height:11px;margin-left:2px;background:var(--dsw-alias-brand-primary,#4d6bfe);vertical-align:-1px;animation:qp-blink 1s steps(2) infinite}
+@keyframes qp-blink{50%{opacity:0}}
+.qp-feed-status{display:flex;align-items:center;gap:6px;padding:6px 0;font-size:10px;color:var(--dsw-alias-label-secondary,#98a2b3)}
+.qp-feed-dot{width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-brand-primary,#4d6bfe);animation:qp-breathe 1.6s ease-in-out infinite}
+.qp-feed-row.is-error .qp-feed-error{color:var(--dsw-alias-state-error-primary,#ff6b6b);font-size:10.5px}
+.qp-quick-wrap{display:flex;flex-direction:column;gap:4px}
+.qp-window-row{width:100%;height:30px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px dashed color-mix(in srgb,var(--dsw-alias-brand-primary,#4d6bfe) 42%,var(--dsw-alias-border-l1,#2b3039));border-radius:8px;background:transparent;color:var(--dsw-alias-brand-primary,#4d6bfe);font:inherit;font-size:10.5px;cursor:pointer}
+.qp-window-row:hover{background:color-mix(in srgb,var(--dsw-alias-brand-primary,#4d6bfe) 8%,transparent)}
+.qp-quick-box{display:flex;align-items:flex-end;gap:6px;border:1px solid var(--dsw-alias-border-l1,#2b3039);border-radius:10px;background:var(--dsw-alias-bg-layer-1,#1a1d24);padding:5px 6px 5px 10px;transition:border-color .15s ease}
+.qp-quick-box:focus-within{border-color:#d9b85e;box-shadow:0 0 0 3px rgb(246 227 161 / .14)}
+.qp-quick-input{flex:1;min-width:0;min-height:24px;max-height:84px;resize:none;border:0;background:transparent;color:var(--dsw-alias-label-primary,#e9ecf1);font:inherit;font-size:12px;line-height:1.45;outline:none;padding:3px 0;caret-color:#e3c76d}
+.qp-quick-input::placeholder{color:var(--dsw-alias-label-secondary,#98a2b3);opacity:.7}
+.qp-quick-input:disabled{cursor:not-allowed;opacity:.7}
+.qp-quick-actions{display:flex;align-items:center;gap:4px;flex:none}
+.qp-send-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:#e7cd8b !important;color:#2a2313 !important;cursor:pointer;flex:none}
+.qp-send-btn:disabled{opacity:.35;cursor:default}
+.qp-stop-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--dsw-alias-border-l1,#2b3039);border-radius:8px;background:var(--dsw-alias-bg-layer-2,#22262e);color:var(--dsw-alias-label-secondary,#98a2b3);cursor:pointer;flex:none}
+.qp-stop-btn:hover:not(:disabled){color:var(--dsw-alias-label-primary,#e9ecf1)}
+.qp-stop-btn:disabled{opacity:.35;cursor:default}
+.qp-quick-hint{font-size:9.5px;color:var(--dsw-alias-label-secondary,#98a2b3);opacity:.7;padding-left:2px}
+.qp-feed-jump{position:absolute;right:18px;bottom:10px;z-index:3;height:24px;padding:0 10px;border-radius:999px;border:1px solid color-mix(in srgb,var(--dsw-alias-brand-primary,#4d6bfe) 40%,transparent);background:var(--dsw-alias-bg-overlay,#262b35);color:var(--dsw-alias-brand-primary,#4d6bfe);font:inherit;font-size:10px;cursor:pointer;box-shadow:0 4px 12px rgb(0 0 0 / .25)}
+.qp-feed-jump:hover{background:var(--dsw-alias-bg-layer-2,#22262e)}
+.qp-bottom-row{display:flex;align-items:center;gap:8px}
+.qp-repeat-select{flex:none;width:auto;max-width:96px;padding:0 4px}
+.qp-action-group{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.qp-action-group .qp-btn{flex:1;min-width:0;padding:0 4px}
+.qp-composer-btn{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary,#98a2b3);cursor:pointer;flex:none}
+.qp-composer-btn:hover{background:var(--dsw-alias-bg-layer-2,#22262e);color:var(--dsw-alias-label-primary,#e9ecf1)}
+.qp-side-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary,#98a2b3);font:inherit;font-size:12px;cursor:pointer;position:relative;flex:none}
+.qp-side-btn:hover{background:var(--dsw-alias-bg-layer-2,#22262e);color:var(--dsw-alias-label-primary,#e9ecf1)}
+.qp-side-dot{position:absolute;top:4px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-success-primary,#3ddc97);box-shadow:0 0 0 2px var(--dsw-alias-bg-base,#14161a)}
+@media (hover:none){.qp-todo-actions{opacity:1}}
+@media (max-width:520px){.qp-panel{max-width:calc(100vw - 16px)}}
+@media (prefers-reduced-motion:reduce){.qp-dot.is-live,.qp-caret,.qp-feed-dot,.qp-wheel-current,.qp-due-card{animation:none}.qp-panel,.qp-island,.qp-flash{animation:none;transition:none}}
+`
+
+    // --------------------------------------------------------------- apply
+
+    function apply(ctx) {
+      hostSync.ctx = ctx
+      try {
+        ctx.inject(['uiSession'], (uiCtx) => {
+          hostSync.uiSession = uiCtx.uiSession
+          hostSync.bindQuestions()
+        })
+      } catch (_error) {
+        /* question mirror is optional */
+      }
+      ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'quick-panel: dictionaries')
+      const t = ctx.locale.bind(NS)
+      ctx.effect(() => {
+        void hostSync.init()
+        return () => hostSync.dispose()
+      }, 'quick-panel: host sync')
+      const scheduleOf = () => {
+        try {
+          const direct = ctx.get('remote.schedule')
+          if (direct) return direct
+          const remote = ctx.get('remote')
+          return remote && remote.schedule ? remote.schedule : null
+        } catch (_error) {
+          return null
+        }
+      }
+      const openSchedule = () => {
+        try {
+          const layout = ctx.get('layout')
+          if (layout && typeof layout.selectPanel === 'function') layout.selectPanel('schedules')
+        } catch (_error) {
+          /* the Automation tasks panel may be unavailable */
+        }
+      }
+      const loadOlder = () => {
+        try {
+          const sessions = ctx.get('sessions')
+          const sessionId = store.state.sessionId
+          if (!sessions || !sessionId) return
+          const binding = sessions.binding(sessionId)
+          const session = binding && binding.session
+          if (session && typeof session.loadOlder === 'function') {
+            const result = session.loadOlder()
+            if (result && typeof result.catch === 'function') result.catch(() => {})
+          }
+        } catch (_error) {
+          /* paging is best effort */
+        }
+      }
+      const sendPrompt = async (text, mode) => {
+        try {
+          const sessions = ctx.get('sessions')
+          const sessionId = store.state.sessionId
+          if (!sessions || !sessionId) return { ok: false }
+          const binding = sessions.binding(sessionId)
+          const session = binding && binding.session
+          if (!session) return { ok: false }
+          let handle = null
+          try {
+            handle = session.beginSubmission({ mode, text, attachments: [] })
+          } catch (_error) {
+            handle = null
+          }
+          try {
+            return await session.prompt(
+              [{ type: 'text', text }],
+              mode,
+              undefined,
+              handle ? handle.requestId : undefined,
+            )
+          } catch (error) {
+            if (handle && typeof handle.abandon === 'function') handle.abandon()
+            return { ok: false, error }
+          }
+        } catch (error) {
+          return { ok: false, error }
+        }
+      }
+      const stopTurn = async () => {
+        try {
+          const sessions = ctx.get('sessions')
+          const sessionId = store.state.sessionId
+          if (!sessions || !sessionId) return { ok: false }
+          const binding = sessions.binding(sessionId)
+          const session = binding && binding.session
+          if (!session || typeof session.cancel !== 'function') return { ok: false }
+          return await session.cancel()
+        } catch (error) {
+          return { ok: false, error }
+        }
+      }
+
+      ctx.slots.inject('shell.overlay', () =>
+        ctx.slots.register({ name: 'shell.overlay', id: 'quick-panel', order: 900 }, (props) =>
+          h(Overlay, {
+            ...props,
+            t,
+            schedule: scheduleOf,
+            openSchedule,
+            loadOlder,
+            sendPrompt,
+            stopTurn,
+          }),
+        ),
+      )
+
+      ctx.slots.inject('sidebar.footer.action', () =>
+        ctx.slots.register(
+          {
+            name: 'sidebar.footer.action',
+            id: 'quick-panel',
+            order: 20,
+            label: () => t('panel'),
+          },
+          (props) => h(FooterAction, { ...props, t }),
+        ),
+      )
+
+      ctx.slots.inject('conversation.input.left', () => {
+        const panelEntry = ctx.slots.register(
+          {
+            name: 'conversation.input.left',
+            id: 'quick-panel',
+            order: 10,
+            label: () => t('panel'),
+          },
+          (props) => h(Bridge, { slot: props, t }),
+        )
+        const statusEntry = ctx.slots.register(
+          { name: 'conversation.input.left', id: 'quick-panel-status', order: 11 },
+          (props) => h(StatusBridge, { slot: props }),
+        )
+        const feedEntry = ctx.slots.register(
+          { name: 'conversation.input.left', id: 'quick-panel-feed', order: 12 },
+          (props) => h(FeedBridge, { slot: props }),
+        )
+        const usageEntry = ctx.slots.register(
+          { name: 'conversation.input.left', id: 'quick-panel-usage', order: 13 },
+          (props) => h(UsageBridge, { slot: props }),
+        )
+        return () => {
+          panelEntry()
+          statusEntry()
+          feedEntry()
+          usageEntry()
+        }
+      })
+    }
+
+export default { inject: ['slots', 'locale'], apply }
