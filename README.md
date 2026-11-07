@@ -108,7 +108,10 @@ https://cinewave0.github.io/cinewave0-dsh-quick-panel/market/index.json
 ```
 index.js                     Host：共享存储、本地 API（含图片附件读取）、live、prompt/stop、静态资源
 client.js                    DSH 客户端（构建产物；编辑 src/client/ 后重新构建）
-src/client/main.js           DSH 客户端源码
+src/client/main.js           DSH 客户端入口：apply 与槽位注册
+src/client/dsh.js            DSH 服务适配层（能力检测 + 降级）
+src/client/session.js        store/模式/待办/提醒/HostSync
+src/client/overlay.js 等     组件与工具模块（overlay/sections/feed/input/panel/bridges）
 src/client/runtime.js        React 绑定（DSH 的 require('react') 注入）
 panel/                       独立窗页面（HTML/CSS/JS/icon）
 runtime/electron-helper/     独立窗主进程与 preload
