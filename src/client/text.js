@@ -1,4 +1,3 @@
-import { React, h, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from './runtime.js'
 
     function pad2(value) {
       return String(value).padStart(2, '0')

@@ -152,3 +152,21 @@ node test/panel.test.mjs
 - 备份：`node scripts/backup.mjs`，默认写到 `../backups`，生成 zip + `.sha256` + `.manifest.json`（含版本、分支、HEAD、未提交路径）。
 - 同步：`node scripts/sync-github.mjs --message "..."` 会先跑 Host 测试再 push；`--dry-run` 只看计划，`--no-push` 只提交；直连 GitHub 被重置时加 `--proxy http://127.0.0.1:7897`（或设 `DSH_GIT_PROXY`）。
 - CI：`.github/workflows/ci.yml` 在 push/PR 时构建 client、校验产物、跑客户端/Host 测试与打包检查。
+
+## 10. tag 发布（GitHub Release）
+
+推送 `v*` tag 会触发 `.github/workflows/release.yml`：
+
+1. 校验 tag 与 `package.json` 版本一致；
+2. 校验 `market/index.json` 里存在该版本且带 `engines.dsh`；
+3. 构建 + 校验产物 + lint + 客户端/Host 测试；
+4. `npm pack` 并生成 `SHA256SUMS`；
+5. 创建 GitHub Release，附上 tgz 和校验和；
+6. 如果仓库配置了 `NPM_TOKEN` secret，再执行 `npm publish`（没有则跳过）。
+
+```powershell
+git tag v1.0.2
+node scripts/sync-github.mjs --tags --message "release: v1.0.2"
+```
+
+npm 账号没解决之前，先把 Release 作为分发渠道；以后补上 `NPM_TOKEN` 即可自动发布。

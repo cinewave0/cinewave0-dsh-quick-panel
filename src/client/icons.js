@@ -1,4 +1,4 @@
-import { React, h, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from './runtime.js'
+import { h } from './runtime.js'
 
     function IconPanel({ size = 16 }) {
       return h(

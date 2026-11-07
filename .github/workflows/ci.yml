@@ -29,6 +29,9 @@ jobs:
       - name: Client bundle is current
         run: git diff --exit-code -- client.js
 
+      - name: Lint
+        run: npm run lint
+
       - name: Syntax check
         run: |
           node --check index.js

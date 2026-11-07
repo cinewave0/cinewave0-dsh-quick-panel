@@ -41,6 +41,27 @@ function unresolved(file, self) {
 
 test('source modules only use explicitly imported names', () => {
   const reports = []
+  const runtimeNames = ['React', 'h', 'useEffect', 'useLayoutEffect', 'useRef', 'useState', 'useSyncExternalStore']
+  const runtimeProblems = []
+  const checkRuntime = (file, source) => {
+    const importLines = (source.match(/^import .*$/gmu) || []).join('\n')
+    const body = source
+      .split('\n')
+      .filter((line) => !line.startsWith('import '))
+      .join('\n')
+    for (const name of runtimeNames) {
+      const used = new RegExp(`\\b${name}\\b`, 'u').test(body)
+      const imported = new RegExp(`\\b${name}\\b`, 'u').test(importLines)
+      if (used && !imported) runtimeProblems.push(`${file}: ${name}`)
+    }
+  }
+  for (const module of modules) {
+    const source = readFileSync(new URL(`${module}.js`, root), 'utf8')
+    checkRuntime(`${module}.js`, source)
+  }
+  checkRuntime('main.js', readFileSync(new URL('main.js', root), 'utf8'))
+  if (runtimeProblems.length > 0) reports.push(`runtime imports: ${runtimeProblems.join(', ')}`)
+
   const mainProblems = unresolved('main.js', 'main')
   if (mainProblems.length > 0) reports.push(`main.js: ${mainProblems.join(', ')}`)
   for (const module of modules) {

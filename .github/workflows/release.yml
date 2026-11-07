@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Check tag matches package version
+        run: |
+          node -e "
+            const pkg = require('./package.json');
+            const tag = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+            if (pkg.version !== tag) {
+              console.error('tag ' + process.env.GITHUB_REF_NAME + ' != package version ' + pkg.version);
+              process.exit(1);
+            }
+          "
+
+      - name: Check market index matches the release
+        run: |
+          node -e "
+            const pkg = require('./package.json');
+            const index = require('./market/index.json');
+            const entry = index.plugins.find((plugin) => plugin.name === pkg.name);
+            if (!entry) throw new Error('market index is missing ' + pkg.name);
+            const version = entry.versions.find((item) => item.version === pkg.version);
+            if (!version) throw new Error('market index is missing version ' + pkg.version);
+            if (!version.engines?.dsh) throw new Error('market index version has no engines.dsh');
+          "
+
+      - name: Build client bundle
+        run: node scripts/build-client.mjs
+
+      - name: Client bundle is current
+        run: git diff --exit-code -- client.js
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: |
+          node test/client-bundle.test.mjs
+          node test/source-imports.test.mjs
+          node test/host.test.mjs
+
+      - name: Pack
+        run: |
+          npm pack
+          sha256sum dsh-quick-panel-*.tgz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dsh-quick-panel-*.tgz SHA256SUMS \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
+
+      - name: Publish to npm
+        if: env.NPM_TOKEN != ''
+        run: npm publish --registry=https://registry.npmjs.org/
+        env:
+          NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}

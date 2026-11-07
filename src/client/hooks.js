@@ -1,4 +1,4 @@
-import { React, h, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from './runtime.js'
+import { React, h, useEffect, useState } from './runtime.js'
 
     function useNow(interval) {
       const [now, setNow] = React.useState(() => Date.now())

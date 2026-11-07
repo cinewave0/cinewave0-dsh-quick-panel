@@ -1,4 +1,3 @@
-import { React, h, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from './runtime.js'
 
     function ensureNotifyPermission() {
       try {

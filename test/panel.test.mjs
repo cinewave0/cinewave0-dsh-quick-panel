@@ -62,8 +62,6 @@ const server = createServer((request, response) => {
       JSON.stringify({
         ok: true,
         rev: 1,
-        todos: [],
-        reminders: [],
         todos: [
           { id: 't1', text: '第一条待办', done: false, handedOff: false, createdAt: Date.now() - 3000 },
           { id: 't2', text: '第二条待办', done: false, handedOff: false, createdAt: Date.now() - 2000 },

@@ -123,6 +123,7 @@ test/                        Host 回归、客户端 bundle envelope 测试
 node scripts/build-client.mjs                    # 由 src/client 生成 client.js
 node test/host.test.mjs                          # Host 回归（7 项）
 node test/client-bundle.test.mjs                 # 客户端 bundle 信封/工厂形状
+npm run lint                                     # oxlint（0 warning 门槛）
 node scripts/backup.mjs                          # 备份到 ../backups（zip + sha256 + manifest）
 node scripts/sync-github.mjs --message "..."     # 提交 + 测试 + push
 node scripts/sync-github.mjs --dry-run           # 只看计划，不提交不推送
