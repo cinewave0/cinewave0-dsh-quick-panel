@@ -14,7 +14,10 @@
   },
   "scripts": {
     "test": "node test/host.test.mjs",
-    "test:panel": "node test/panel.test.mjs"
+    "test:panel": "node test/panel.test.mjs",
+    "check": "node --check index.js && node --check client.js && node --check panel/panel.js && node --check runtime/electron-helper/main.cjs",
+    "backup": "node scripts/backup.mjs",
+    "sync": "node scripts/sync-github.mjs"
   },
   "exports": {
     ".": "./index.js",
@@ -30,6 +33,7 @@
     "icon.svg",
     "panel",
     "runtime",
+    "market",
     "README.md"
   ],
   "dsh": {

@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Syntax check
+        run: |
+          node --check index.js
+          node --check client.js
+          node --check panel/panel.js
+          node --check runtime/electron-helper/main.cjs
+          node --check scripts/backup.mjs
+          node --check scripts/sync-github.mjs
+          node --check scripts/make-market-index.mjs
+
+      - name: Host regression tests
+        run: node test/host.test.mjs
+
+      - name: Package contents
+        run: npm pack --dry-run
+
+      - name: Market index is valid
+        run: |
+          node -e "const j = require('./market/index.json'); if (j.format !== 1 || !Array.isArray(j.plugins) || j.plugins.length === 0) process.exit(1)"

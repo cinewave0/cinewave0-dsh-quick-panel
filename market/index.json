@@ -30,9 +30,7 @@
           "version": "1.0.2",
           "publishTimestamp": 1793949915,
           "source": {
-            "type": "git",
-            "url": "https://github.com/cinewave0/cinewave0-dsh-quick-panel",
-            "commit": "283270f0af227c5a2b30341ad954c3645fd27b9e"
+            "type": "npm"
           },
           "engines": {
             "dsh": ">=0.2.2-rc.1 <0.3.0"
