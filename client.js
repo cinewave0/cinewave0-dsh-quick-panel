@@ -671,6 +671,9 @@ window.__ModuleLoader__.load({
         }
 
         // src/client/text.js
+        function pad2(value) {
+          return String(value).padStart(2, "0");
+        }
         function formatDuration(ms) {
           const total = Math.max(0, Math.floor(ms / 1e3));
           return `${pad2(Math.floor(total / 60))}:${pad2(total % 60)}`;
@@ -956,7 +959,7 @@ window.__ModuleLoader__.load({
           }
         }
 
-        // src/client/main.js
+        // src/client/session.js
         var store = {
           state: Object.freeze({
             mode: readMode(),
@@ -1116,21 +1119,18 @@ window.__ModuleLoader__.load({
             todoStore.commit(todoStore.items.filter((item) => item.id !== id));
           }
         };
-        function pad22(value) {
-          return String(value).padStart(2, "0");
-        }
         function defaultWhenParts(timestamp) {
           const date = new Date(timestamp);
           return {
-            date: `${date.getFullYear()}-${pad22(date.getMonth() + 1)}-${pad22(date.getDate())}`,
-            hour: pad22(date.getHours()),
-            minute: pad22(date.getMinutes())
+            date: `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`,
+            hour: pad2(date.getHours()),
+            minute: pad2(date.getMinutes())
           };
         }
         function formatWhen(t, at, now) {
           const date = new Date(at);
           const current = new Date(now);
-          const time = `${pad22(date.getHours())}:${pad22(date.getMinutes())}`;
+          const time = `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
           if (date.toDateString() === current.toDateString()) return `${t("today")} ${time}`;
           const tomorrow = new Date(current);
           tomorrow.setDate(current.getDate() + 1);
@@ -1168,7 +1168,7 @@ window.__ModuleLoader__.load({
         function nextOccurrence(item, now) {
           if (item.repeat === "none") return null;
           const previous = new Date(item.at);
-          const spec = item.timeOfDay || `${pad22(previous.getHours())}:${pad22(previous.getMinutes())}`;
+          const spec = item.timeOfDay || `${pad2(previous.getHours())}:${pad2(previous.getMinutes())}`;
           const match = /^(\d{2}):(\d{2})$/.exec(spec);
           const hours = match ? Number(match[1]) : previous.getHours();
           const minutes = match ? Number(match[2]) : previous.getMinutes();
@@ -1615,6 +1615,8 @@ window.__ModuleLoader__.load({
             this.ready = false;
           }
         };
+
+        // src/client/main.js
         function Overlay({ t, schedule, openSchedule, loadOlder, sendPrompt, stopTurn }) {
           const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
           const now = useNow(1e3);
@@ -2811,8 +2813,8 @@ window.__ModuleLoader__.load({
             } catch (_error) {
             }
             const date = new Date(entry.at);
-            const time = `${pad22(date.getHours())}:${pad22(date.getMinutes())}`;
-            const dateText = `${date.getFullYear()}-${pad22(date.getMonth() + 1)}-${pad22(date.getDate())}`;
+            const time = `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+            const dateText = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
             const timing = () => {
               if (entry.repeat === "none") {
                 return { kind: "at", at: { date: dateText, time, time_zone: timeZone } };

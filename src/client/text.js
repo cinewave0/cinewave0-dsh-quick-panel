@@ -1,5 +1,9 @@
 import { React, h, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from './runtime.js'
 
+    function pad2(value) {
+      return String(value).padStart(2, '0')
+    }
+
     function formatDuration(ms) {
       const total = Math.max(0, Math.floor(ms / 1000))
       return `${pad2(Math.floor(total / 60))}:${pad2(total % 60)}`
@@ -161,4 +165,4 @@ import { React, h, useEffect, useLayoutEffect, useRef, useState, useSyncExternal
     // ---------------------------------------------------------------- icons
 
 
-export { formatDuration, contentText, latestText, hostLiveBlocks, userImageRefs, hostLiveRow, hostLivePartial, codeSegments, timeLabel, buildHandoff }
+export { pad2, formatDuration, contentText, latestText, hostLiveBlocks, userImageRefs, hostLiveRow, hostLivePartial, codeSegments, timeLabel, buildHandoff }

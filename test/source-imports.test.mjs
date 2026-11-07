@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 const root = new URL('../src/client/', import.meta.url)
-const modules = ['icons', 'hooks', 'text', 'notify', 'constants', 'locales', 'styles']
+const modules = ['icons', 'hooks', 'text', 'notify', 'constants', 'locales', 'styles', 'session']
 
 const exportsOf = {}
 for (const name of modules) {
