@@ -35,6 +35,7 @@ let questionDraft = null
 let questionIndex = 0
 let questionBusy = false
 let approvalWaitTimer = 0
+let approvalNotice = null
 let lockBusy = false
 let lastRunning = false
 let runStartedAt = 0
@@ -743,6 +744,51 @@ function approvalSignatureOf(approval) {
   return approval ? `${approval.key}|${approval.toolName}|${approval.reason}` : ''
 }
 
+function clearApprovalNotice() {
+  if (!approvalNotice) return
+  try {
+    approvalNotice.close()
+  } catch (_error) {
+    /* the notification may already be gone */
+  }
+  approvalNotice = null
+}
+
+/** A new approval should reach the user even when the panel is not focused. */
+function remindApproval(approval) {
+  void playChime('reminder')
+  if (typeof Notification === 'undefined') return
+  const show = () => {
+    if (Notification.permission !== 'granted') return
+    clearApprovalNotice()
+    try {
+      approvalNotice = new Notification(`权限请求 · ${approval.toolName || '工具'}`, {
+        body: approval.reason || approval.displayReason || '工具请求越权执行',
+        tag: 'quick-panel-approval',
+        requireInteraction: true,
+      })
+      approvalNotice.onclick = () => {
+        window.focus()
+        clearApprovalNotice()
+      }
+    } catch (_error) {
+      approvalNotice = null
+    }
+  }
+  if (Notification.permission === 'default') {
+    const pending = Notification.requestPermission()
+    if (pending && typeof pending.then === 'function') {
+      pending
+        .then((permission) => {
+          if (permission === 'granted') show()
+        })
+        .catch(() => {})
+    }
+    return
+  }
+  show()
+}
+
 function renderApproval(force) {
   const card = $('approval-card')
   if (!card) return
@@ -762,6 +808,7 @@ function renderApproval(force) {
     }
     card.hidden = true
     approvalAnswering = false
+    clearApprovalNotice()
     updateComposer()
     return
   }
@@ -772,6 +819,7 @@ function renderApproval(force) {
   $('approval-allow').disabled = approvalAnswering
   $('approval-reject').disabled = approvalAnswering
   updateComposer()
+  if (changed) remindApproval(approval)
   if (changed && !approvalAnswering) {
     if (document.body.classList.contains('mode-island')) {
       const desktop = window.quickPanelDesktop

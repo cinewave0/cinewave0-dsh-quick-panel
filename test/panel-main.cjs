@@ -106,8 +106,22 @@ app.whenReady().then(async () => {
   assert.equal(after.approvalVisible, false)
   assert.equal(after.inputDisabled, false)
 
+  await win.webContents.executeJavaScript(`
+    window.__qpNotifications = [];
+    window.Notification = function (title, options) {
+      window.__qpNotifications.push({ title, options: options || {} });
+      this.close = function () {};
+    };
+    window.Notification.permission = 'granted';
+    window.Notification.requestPermission = function () { return Promise.resolve('granted'); };
+    true;
+  `)
   await fetchJson('/test/approval')
   await delay(1600)
+  const notices = await win.webContents.executeJavaScript('window.__qpNotifications')
+  assert.equal(notices.length, 1)
+  assert.match(notices[0].title, /权限请求/)
+  assert.match(notices[0].options.body, /需要管理员权限/)
   await win.webContents.executeJavaScript(
     `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
   )
