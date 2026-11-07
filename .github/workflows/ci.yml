@@ -42,6 +42,9 @@ jobs:
       - name: Client bundle envelope
         run: node test/client-bundle.test.mjs
 
+      - name: Source imports
+        run: node test/source-imports.test.mjs
+
       - name: Host regression tests
         run: node test/host.test.mjs
 
