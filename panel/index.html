@@ -89,6 +89,22 @@
         </div>
       </section>
 
+      <section class="notify" id="notify">
+        <button type="button" class="notify-toggle" id="notify-toggle" aria-expanded="false" aria-controls="notify-list">
+          <span class="notify-badge" id="notify-count" hidden>0</span>
+          <span class="notify-title">通知</span>
+          <span class="notify-latest" id="notify-latest">暂无新通知</span>
+          <span class="notify-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="notify-list" id="notify-list" hidden>
+          <div class="notify-empty" id="notify-empty">暂无通知</div>
+          <div class="notify-rows" id="notify-rows"></div>
+          <div class="notify-actions">
+            <button type="button" class="notify-clear" id="notify-clear">清空</button>
+          </div>
+        </div>
+      </section>
+
       <section class="section todos">
         <div class="section-head"><span>待办</span><span class="count" id="todo-count"></span></div>
         <div class="capture">

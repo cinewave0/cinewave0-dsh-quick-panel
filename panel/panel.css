@@ -515,6 +515,161 @@ body.mode-island .clock-side {
   opacity: 0.75;
 }
 
+.notify {
+  flex: none;
+  margin-top: 10px;
+}
+
+.notify-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--layer);
+  color: var(--sub);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notify-toggle:hover {
+  color: var(--text);
+}
+
+.notify-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--gold);
+  color: var(--on-gold);
+  font-size: 10px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notify-title {
+  flex: none;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.notify-latest {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notify-chevron {
+  flex: none;
+  opacity: 0.6;
+  transition: transform 0.15s ease;
+}
+
+.notify.has-unread .notify-toggle {
+  border-color: color-mix(in srgb, var(--gold) 45%, var(--border));
+}
+
+.notify.is-open .notify-chevron {
+  transform: rotate(180deg);
+}
+
+.notify-list {
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--layer);
+  max-height: 200px;
+  overflow: auto;
+}
+
+.notify-empty {
+  padding: 10px;
+  color: var(--sub);
+  font-size: 11px;
+  text-align: center;
+}
+
+.notify-row {
+  display: block;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notify-row:last-child {
+  border-bottom: 0;
+}
+
+.notify-row:hover {
+  background: var(--layer2);
+}
+
+.notify-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--sub);
+  font-size: 10px;
+}
+
+.notify-row-title {
+  color: var(--text);
+  font-size: 11.5px;
+}
+
+.notify-row.is-unread .notify-row-title::before {
+  content: "●";
+  margin-right: 4px;
+  color: var(--gold);
+  font-size: 8px;
+  vertical-align: middle;
+}
+
+.notify-row-body {
+  margin-top: 2px;
+  color: var(--sub);
+  font-size: 10.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.notify-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 9px;
+}
+
+.notify-clear {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sub);
+  font: inherit;
+  font-size: 10px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.notify-clear:hover {
+  color: var(--text);
+}
+
 .count {
   font-size: 10px;
   opacity: 0.75;

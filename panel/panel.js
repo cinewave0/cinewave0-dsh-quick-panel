@@ -37,6 +37,10 @@ let questionBusy = false
 let approvalWaitTimer = 0
 let approvalNotice = null
 let lockBusy = false
+const NOTIFY_KEY = 'dsh.quick-panel.notify.v1'
+const NOTIFY_LIMIT = 20
+let notifications = loadNotifications()
+let notifyOpen = false
 let lastRunning = false
 let runStartedAt = 0
 let doneText = ''
@@ -700,6 +704,136 @@ function wireFeed() {
   })
 }
 
+/* ------------------------------------------------------------- notify */
+
+function loadNotifications() {
+  try {
+    const raw = localStorage.getItem(NOTIFY_KEY)
+    const list = raw ? JSON.parse(raw) : []
+    if (!Array.isArray(list)) return []
+    return list
+      .filter((item) => item && typeof item.title === 'string' && Number.isFinite(item.at))
+      .slice(0, NOTIFY_LIMIT)
+  } catch (_error) {
+    return []
+  }
+}
+
+function saveNotifications() {
+  try {
+    localStorage.setItem('dsh.quick-panel.notify.v1', JSON.stringify(notifications))
+  } catch (_error) {
+    /* storage is optional */
+  }
+}
+
+function pushNotification(kind, title, body, key) {
+  if (key && notifications.some((item) => item.kind === kind && item.key === key)) return
+  notifications = [
+    {
+      id: crypto.randomUUID(),
+      kind,
+      key: key || null,
+      title,
+      body: body || '',
+      at: Date.now(),
+      read: false,
+    },
+    ...notifications,
+  ].slice(0, NOTIFY_LIMIT)
+  saveNotifications()
+  renderNotifications()
+}
+
+function renderNotifyRows() {
+  const rows = $('notify-rows')
+  if (!rows) return
+  rows.textContent = ''
+  const empty = $('notify-empty')
+  if (empty) empty.hidden = notifications.length > 0
+  for (const item of notifications) {
+    const row = document.createElement('button')
+    row.type = 'button'
+    row.className = `notify-row${item.read ? '' : ' is-unread'}`
+    const head = document.createElement('div')
+    head.className = 'notify-row-head'
+    const title = document.createElement('span')
+    title.className = 'notify-row-title'
+    title.textContent = item.title
+    const time = document.createElement('span')
+    time.textContent = new Date(item.at).toLocaleTimeString('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    head.append(title, time)
+    const body = document.createElement('div')
+    body.className = 'notify-row-body'
+    body.textContent = item.body
+    row.append(head, body)
+    row.addEventListener('click', () => {
+      item.read = true
+      saveNotifications()
+      if (item.kind === 'approval') focusApproval(item.key)
+      renderNotifications()
+    })
+    rows.append(row)
+  }
+}
+
+function renderNotifications() {
+  const bar = $('notify')
+  if (!bar) return
+  const unread = notifications.filter((item) => !item.read)
+  const badge = $('notify-count')
+  if (badge) {
+    badge.textContent = String(unread.length)
+    badge.hidden = unread.length === 0
+  }
+  const latest = $('notify-latest')
+  if (latest) latest.textContent = unread.length ? unread[0].title : '暂无新通知'
+  bar.classList.toggle('has-unread', unread.length > 0)
+  bar.classList.toggle('is-open', notifyOpen)
+  const list = $('notify-list')
+  if (list) list.hidden = !notifyOpen
+  const toggle = $('notify-toggle')
+  if (toggle) toggle.setAttribute('aria-expanded', String(notifyOpen))
+  renderNotifyRows()
+}
+
+function focusApproval(key) {
+  const approval = snapshot.approval
+  if (!approval || (key && approval.key !== key)) return
+  notifyOpen = false
+  renderNotifications()
+  if (document.body.classList.contains('mode-island')) {
+    const desktop = window.quickPanelDesktop
+    if (desktop && typeof desktop.expand === 'function') void desktop.expand()
+  }
+  const card = $('approval-card')
+  if (card && typeof card.scrollIntoView === 'function') card.scrollIntoView({ block: 'nearest' })
+}
+
+function wireNotifications() {
+  const toggle = $('notify-toggle')
+  if (!toggle) return
+  toggle.addEventListener('click', () => {
+    notifyOpen = !notifyOpen
+    if (notifyOpen) {
+      notifications = notifications.map((item) => (item.read ? item : { ...item, read: true }))
+      saveNotifications()
+    }
+    renderNotifications()
+  })
+  const clear = $('notify-clear')
+  if (clear) {
+    clear.addEventListener('click', () => {
+      notifications = []
+      saveNotifications()
+      renderNotifications()
+    })
+  }
+}
+
 /* --------------------------------------------------------- approval lock */
 
 function renderApprovalLock() {
@@ -820,6 +954,14 @@ function renderApproval(force) {
   $('approval-reject').disabled = approvalAnswering
   updateComposer()
   if (changed) remindApproval(approval)
+  if (changed) {
+    pushNotification(
+      'approval',
+      `审批请求 · ${approval.toolName || '工具'}`,
+      approval.reason || approval.displayReason || '工具请求越权执行',
+      approval.key,
+    )
+  }
   if (changed && !approvalAnswering) {
     if (document.body.classList.contains('mode-island')) {
       const desktop = window.quickPanelDesktop
@@ -1218,6 +1360,7 @@ async function refresh(force) {
       doneText = `本轮完成 · ${formatDuration(elapsed)}`
       doneUntil = Date.now() + 8000
       showDoneToast(doneText)
+      pushNotification('turn-end', '本轮结束', `用时 ${formatDuration(elapsed)}`)
       if (elapsed >= 2000) {
         void playChime('done')
         if (!document.hasFocus()) {
@@ -1730,6 +1873,9 @@ function checkDue() {
   dueQueue.push(...due)
   void playChime('reminder')
   for (const item of due.slice(0, 3)) notifyReminder(item)
+  for (const item of due) {
+    pushNotification('reminder', '提醒', item.text, `${item.id}:${item.at}`)
+  }
   if (document.body.classList.contains('mode-island')) {
     const desktop = window.quickPanelDesktop
     if (desktop && typeof desktop.expand === 'function') void desktop.expand()
@@ -1783,6 +1929,8 @@ function boot() {
   wireFeed()
   wireApproval()
   wireApprovalLock()
+  wireNotifications()
+  renderNotifications()
   wireQuestion()
   wireImageViewer()
   wireWindowControls()

@@ -49,6 +49,8 @@ app.whenReady().then(async () => {
     approvalVisible: !document.getElementById('approval-card').hidden,
     lockChecked: document.getElementById('approval-lock').checked,
     lockHint: document.getElementById('approval-lock-hint').textContent,
+    notifyCount: document.getElementById('notify-count').textContent,
+    notifyLatest: document.getElementById('notify-latest').textContent,
     inputDisabled: document.getElementById('quick-input').disabled,
     imageCount: document.querySelectorAll('.feed-image img').length,
     imageWidth: document.querySelector('.feed-image img')?.naturalWidth ?? 0,
@@ -73,6 +75,8 @@ app.whenReady().then(async () => {
   assert.equal(layout.approvalVisible, true)
   assert.equal(layout.lockChecked, false)
   assert.match(layout.lockHint, /勾选后/)
+  assert.equal(layout.notifyCount, '1')
+  assert.match(layout.notifyLatest, /审批请求/)
   assert.equal(layout.inputDisabled, true)
   assert.equal(layout.imageCount, 1)
   assert.ok(layout.imageWidth > 0, 'thumbnail should load')
@@ -90,6 +94,20 @@ app.whenReady().then(async () => {
   })`)
   assert.equal(lockedUi.checked, true)
   assert.match(lockedUi.hint, /已锁定/)
+
+  await win.webContents.executeJavaScript(`document.getElementById('notify-toggle').click()`)
+  await delay(250)
+  const notifyUi = await win.webContents.executeJavaScript(`({
+    open: !document.getElementById('notify-list').hidden,
+    rows: document.querySelectorAll('.notify-row').length,
+    count: document.getElementById('notify-count').textContent,
+    unread: document.querySelectorAll('.notify-row.is-unread').length,
+  })`)
+  assert.equal(notifyUi.open, true)
+  assert.ok(notifyUi.rows >= 1)
+  assert.equal(notifyUi.count, '0')
+  assert.equal(notifyUi.unread, 0)
+  await win.webContents.executeJavaScript(`document.getElementById('notify-toggle').click()`)
 
   await win.webContents.executeJavaScript(
     `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`,
