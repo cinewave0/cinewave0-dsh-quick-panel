@@ -126,6 +126,7 @@ node test/client-bundle.test.mjs                 # 客户端 bundle 信封/工�
 node scripts/backup.mjs                          # 备份到 ../backups（zip + sha256 + manifest）
 node scripts/sync-github.mjs --message "..."     # 提交 + 测试 + push
 node scripts/sync-github.mjs --dry-run           # 只看计划，不提交不推送
+node scripts/sync-github.mjs --proxy http://127.0.0.1:7897 --message "..."  # 直连被重置时走本机代理
 ```
 
 `client.js` 是生成文件，直接改它会在下一次构建时被覆盖；CI 会用 `git diff --exit-code client.js` 检查源码与产物是否一致。

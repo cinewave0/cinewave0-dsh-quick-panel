@@ -24,12 +24,14 @@ function option(name, fallback) {
 
 const dryRun = flag('dry-run')
 const noPush = flag('no-push')
+const proxy = option('proxy', process.env.DSH_GIT_PROXY || '')
 const now = new Date()
 const pad = (value) => String(value).padStart(2, '0')
 const localStamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`
 const branch = (capture('git', ['rev-parse', '--abbrev-ref', 'HEAD'], root) || '').trim()
 if (!branch) throw new Error('not a git repository')
 if (branch === 'HEAD') throw new Error('detached HEAD, checkout a branch before syncing')
+const pushArgs = proxy ? ['-c', `http.proxy=${proxy}`, 'push', 'origin', branch] : ['push', 'origin', branch]
 
 const status = capture('git', ['status', '--porcelain'], root)
 if (status === null) throw new Error('could not read git status')
@@ -67,13 +69,17 @@ if (noPush) {
 }
 
 try {
-  run('git', ['push', 'origin', branch], root)
-  if (flag('tags')) run('git', ['push', 'origin', '--tags'], root)
+  run('git', pushArgs, root)
+  if (flag('tags')) {
+    const tagArgs = proxy ? ['-c', `http.proxy=${proxy}`, 'push', 'origin', '--tags'] : ['push', 'origin', '--tags']
+    run('git', tagArgs, root)
+  }
   console.log(`pushed    origin/${branch}`)
 } catch (error) {
   console.error(`\npush failed: ${error.message}`)
   console.error('common causes: the DSH sandbox blocks the git credential helper (named pipes),')
-  console.error('the network is unavailable, or the remote needs credentials.')
+  console.error('the network resets the connection, or the remote needs credentials.')
   console.error(`retry in a normal terminal:  git push origin ${branch}`)
+  console.error('or use a local proxy:        node scripts/sync-github.mjs --proxy http://127.0.0.1:7897')
   process.exitCode = 1
 }
