@@ -145,3 +145,10 @@ node test/panel.test.mjs
 - 在 README 写清楚权限、外部窗口、网络请求范围；
 - 保持 MIT LICENSE；
 - 对每个版本使用固定 commit，避免分支漂移。
+
+## 9. 构建、备份与同步
+
+- `client.js` 是构建产物：编辑 `src/client/main.js`，运行 `node scripts/build-client.mjs`；CI 会校验产物与源码一致。
+- 备份：`node scripts/backup.mjs`，默认写到 `../backups`，生成 zip + `.sha256` + `.manifest.json`（含版本、分支、HEAD、未提交路径）。
+- 同步：`node scripts/sync-github.mjs --message "..."` 会先跑 Host 测试再 push；`--dry-run` 只看计划，`--no-push` 只提交。
+- CI：`.github/workflows/ci.yml` 在 push/PR 时构建 client、校验产物、跑客户端/Host 测试与打包检查。

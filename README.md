@@ -107,11 +107,28 @@ https://cinewave0.github.io/cinewave0-dsh-quick-panel/market/index.json
 
 ```
 index.js                     Host：共享存储、本地 API（含图片附件读取）、live、prompt/stop、静态资源
-client.js                    DSH 客户端：浮岛/面板/待办/提醒/实时消息/输入
+client.js                    DSH 客户端（构建产物；编辑 src/client/ 后重新构建）
+src/client/main.js           DSH 客户端源码
+src/client/runtime.js        React 绑定（DSH 的 require('react') 注入）
 panel/                       独立窗页面（HTML/CSS/JS/icon）
 runtime/electron-helper/     独立窗主进程与 preload
 locale/                      插件标题/描述
+scripts/                     构建、备份、GitHub 同步、市场索引生成
+test/                        Host 回归、客户端 bundle envelope 测试
 ```
+
+## 开发命令
+
+```powershell
+node scripts/build-client.mjs                    # 由 src/client 生成 client.js
+node test/host.test.mjs                          # Host 回归（7 项）
+node test/client-bundle.test.mjs                 # 客户端 bundle 信封/工厂形状
+node scripts/backup.mjs                          # 备份到 ../backups（zip + sha256 + manifest）
+node scripts/sync-github.mjs --message "..."     # 提交 + 测试 + push
+node scripts/sync-github.mjs --dry-run           # 只看计划，不提交不推送
+```
+
+`client.js` 是生成文件，直接改它会在下一次构建时被覆盖；CI 会用 `git diff --exit-code client.js` 检查源码与产物是否一致。
 
 ## License
 
