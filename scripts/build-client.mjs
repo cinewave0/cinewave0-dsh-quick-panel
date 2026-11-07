@@ -7,21 +7,43 @@
  * factory body sets `globalThis.__qpReact` before the bundle runs; runtime.js
  * reads it at module-evaluation time.
  *
- * The esbuild CLI is used through its Node shim (stdio inherited) so the build
- * also works under the DSH Windows sandbox, where piped child stdout is denied.
+ * esbuild is invoked as its platform binary (stdio inherited) so the build also
+ * works under the DSH Windows sandbox, where piped child stdout is denied. The
+ * npm `bin/esbuild` shim is a JS file on Windows but the native ELF on Linux,
+ * so it is only used as a fallback.
  */
 import { spawnSync } from 'node:child_process'
-import { readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const root = process.cwd()
-const shim = join(root, 'node_modules', 'esbuild', 'bin', 'esbuild')
 const temp = join(root, '.tmp-client-bundle.js')
 
+function esbuildCommand() {
+  const platformPackage = `@esbuild/${process.platform}-${process.arch}`
+  const nativeBinary = join(
+    root,
+    'node_modules',
+    platformPackage,
+    process.platform === 'win32' ? 'esbuild.exe' : join('bin', 'esbuild'),
+  )
+  if (existsSync(nativeBinary)) return { command: nativeBinary, prefix: [] }
+
+  const shim = join(root, 'node_modules', 'esbuild', 'bin', 'esbuild')
+  if (existsSync(shim)) {
+    const magic = readFileSync(shim).subarray(0, 4).toString('latin1')
+    if (magic.startsWith('\x7fELF') || magic.startsWith('MZ')) return { command: shim, prefix: [] }
+    return { command: process.execPath, prefix: [shim] }
+  }
+
+  throw new Error('esbuild is not installed; run npm install')
+}
+
+const { command, prefix } = esbuildCommand()
 const result = spawnSync(
-  process.execPath,
+  command,
   [
-    shim,
+    ...prefix,
     'src/client/main.js',
     '--bundle',
     '--format=iife',
@@ -34,6 +56,7 @@ const result = spawnSync(
   ],
   { cwd: root, stdio: 'inherit' },
 )
+if (result.error) throw result.error
 if (result.status !== 0) {
   rmSync(temp, { force: true })
   throw new Error(`esbuild exited ${String(result.status)}`)
