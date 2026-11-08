@@ -32,7 +32,7 @@
           "source": {
             "type": "git",
             "url": "https://github.com/cinewave0/cinewave0-dsh-quick-panel",
-            "commit": "0946c955a8d0d6d95b55ddf093bb4e8cece0e11b"
+            "commit": "6ec9490c59f6bf57b5354d1d23c5a76c3f4a68cf"
           },
           "engines": {
             "dsh": ">=0.2.2-rc.1 <0.3.0"
