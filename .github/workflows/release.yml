@@ -76,13 +76,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          prerelease=""
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease="--prerelease"; fi
           gh release create "$GITHUB_REF_NAME" \
             dsh-quick-panel-*.tgz SHA256SUMS \
             --title "$GITHUB_REF_NAME" \
-            --generate-notes
+            --generate-notes $prerelease
 
       - name: Publish to npm
-        if: env.NPM_TOKEN != ''
+        if: env.NPM_TOKEN != '' && !contains(github.ref_name, '-')
         run: npm publish --registry=https://registry.npmjs.org/
         env:
           NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}
