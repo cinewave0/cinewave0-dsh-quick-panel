@@ -124,6 +124,40 @@ app.whenReady().then(async () => {
   assert.equal(after.approvalVisible, false)
   assert.equal(after.inputDisabled, false)
 
+  const dropped = await win.webContents.executeJavaScript(`
+    (async () => {
+      const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+      const file = new File([bytes], 'drop.png', { type: 'image/png' });
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      window.dispatchEvent(new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return {
+        chips: document.querySelectorAll('.attachment-chip').length,
+        name: document.querySelector('.attachment-name')?.textContent ?? '',
+        sendDisabled: document.getElementById('quick-send').disabled,
+      };
+    })()
+  `)
+  assert.equal(dropped.chips, 1)
+  assert.equal(dropped.name, 'drop.png')
+  assert.equal(dropped.sendDisabled, false)
+
+  await win.webContents.executeJavaScript(`document.getElementById('quick-send').click()`)
+  await delay(700)
+  const sentUploads = await fetchJson('/test/uploads')
+  assert.equal(sentUploads.length, 1)
+  assert.equal(sentUploads[0].mediaType, 'image/png')
+  const sentPrompts = await fetchJson('/test/prompts')
+  assert.equal(sentPrompts.length, 1)
+  assert.equal(sentPrompts[0].attachments.length, 1)
+  assert.equal(sentPrompts[0].attachments[0].receiptId, 'receipt-1')
+  assert.equal(sentPrompts[0].attachments[0].kind, 'image')
+  const afterSend = await win.webContents.executeJavaScript(`({
+    chips: document.querySelectorAll('.attachment-chip').length,
+  })`)
+  assert.equal(afterSend.chips, 0)
+
   await win.webContents.executeJavaScript(`
     window.__qpNotifications = [];
     window.Notification = function (title, options) {

@@ -41,6 +41,7 @@ const NOTIFY_KEY = 'dsh.quick-panel.notify.v1'
 const NOTIFY_LIMIT = 20
 let notifications = loadNotifications()
 let notifyOpen = false
+let pendingAttachments = []
 let lastRunning = false
 let runStartedAt = 0
 let doneText = ''
@@ -1231,6 +1232,157 @@ function wireQuestion() {
   })
 }
 
+/* ---------------------------------------------------------- attachments */
+
+const ATTACHMENT_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
+const ATTACHMENT_LIMIT = 20
+
+function renderAttachments() {
+  const strip = $('attachment-strip')
+  if (!strip) return
+  strip.textContent = ''
+  strip.hidden = pendingAttachments.length === 0
+  for (const attachment of pendingAttachments) {
+    const chip = document.createElement('div')
+    chip.className = `attachment-chip${attachment.status === 'error' ? ' is-error' : ''}`
+    if (attachment.previewUrl) {
+      const preview = document.createElement('img')
+      preview.src = attachment.previewUrl
+      preview.alt = ''
+      chip.append(preview)
+    }
+    const name = document.createElement('span')
+    name.className = 'attachment-name'
+    name.textContent = attachment.name
+    chip.append(name)
+    if (attachment.status === 'uploading') {
+      const state = document.createElement('span')
+      state.className = 'attachment-state'
+      state.textContent = '上传中…'
+      chip.append(state)
+    } else if (attachment.status === 'error') {
+      const state = document.createElement('span')
+      state.className = 'attachment-state'
+      state.textContent = attachment.error ? `失败：${attachment.error}` : '上传失败'
+      chip.append(state)
+    }
+    const remove = document.createElement('button')
+    remove.type = 'button'
+    remove.className = 'attachment-remove'
+    remove.title = '移除'
+    remove.setAttribute('aria-label', `移除 ${attachment.name}`)
+    remove.textContent = '×'
+    remove.addEventListener('click', () => removeAttachment(attachment.id))
+    chip.append(remove)
+    strip.append(chip)
+  }
+  updateComposer()
+}
+
+function removeAttachment(id) {
+  const attachment = pendingAttachments.find((item) => item.id === id)
+  if (attachment && attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
+  pendingAttachments = pendingAttachments.filter((item) => item.id !== id)
+  renderAttachments()
+}
+
+function clearAttachments() {
+  for (const attachment of pendingAttachments) {
+    if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
+  }
+  pendingAttachments = []
+  renderAttachments()
+}
+
+async function addFiles(files) {
+  if (!snapshot.activeSessionId) {
+    setSync('先在 DSH 打开一个对话')
+    return
+  }
+  const room = Math.max(0, ATTACHMENT_LIMIT - pendingAttachments.length)
+  const list = [...files].slice(0, room)
+  if (list.length === 0) {
+    setSync(`最多添加 ${ATTACHMENT_LIMIT} 个附件`)
+    return
+  }
+  for (const file of list) {
+    const isImage = ATTACHMENT_IMAGE_TYPES.has(file.type)
+    const attachment = {
+      id: crypto.randomUUID(),
+      name: file.name || 'file',
+      kind: isImage ? 'image' : 'file',
+      mediaType: isImage ? file.type : 'application/octet-stream',
+      status: 'uploading',
+      previewUrl: isImage ? URL.createObjectURL(file) : '',
+      error: '',
+    }
+    pendingAttachments.push(attachment)
+    renderAttachments()
+    try {
+      const query = new URLSearchParams({
+        token: TOKEN,
+        sessionId: snapshot.activeSessionId,
+        name: attachment.name,
+      })
+      if (isImage) query.set('mediaType', file.type)
+      const response = await fetch(`${BASE}/upload?${query.toString()}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/octet-stream',
+          'x-quick-panel-token': TOKEN,
+        },
+        body: file,
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result || !result.ok || typeof result.receiptId !== 'string') {
+        throw new Error((result && result.error) || `HTTP ${response.status}`)
+      }
+      attachment.receiptId = result.receiptId
+      attachment.kind = result.kind === 'image' ? 'image' : 'file'
+      attachment.status = 'ready'
+    } catch (error) {
+      attachment.status = 'error'
+      attachment.error = String((error && error.message) || error)
+    }
+    renderAttachments()
+  }
+}
+
+function wireAttachments() {
+  let depth = 0
+  const hasFiles = (event) => {
+    const transfer = event.dataTransfer
+    return Boolean(transfer && Array.from(transfer.types || []).includes('Files'))
+  }
+  window.addEventListener('dragenter', (event) => {
+    if (!hasFiles(event)) return
+    event.preventDefault()
+    depth += 1
+    document.body.classList.add('drop-active')
+  })
+  window.addEventListener('dragover', (event) => {
+    if (!hasFiles(event)) return
+    event.preventDefault()
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+  })
+  window.addEventListener('dragleave', () => {
+    depth = Math.max(0, depth - 1)
+    if (depth === 0) document.body.classList.remove('drop-active')
+  })
+  window.addEventListener('drop', (event) => {
+    event.preventDefault()
+    depth = 0
+    document.body.classList.remove('drop-active')
+    const files =
+      event.dataTransfer && event.dataTransfer.files ? Array.from(event.dataTransfer.files) : []
+    if (files.length === 0) {
+      setSync('没有识别到文件')
+      return
+    }
+    void addFiles(files)
+  })
+}
+
 /* ------------------------------------------------------------ composer */
 
 function updateComposer() {
@@ -1241,7 +1393,14 @@ function updateComposer() {
   const connected = Boolean(snapshot.activeSessionId)
   const approvalPending = Boolean(snapshot.approval)
   const questionPending = Boolean(snapshot.question)
-  sendButton.disabled = !connected || approvalPending || questionPending || !input.value.trim()
+  const readyAttachment = pendingAttachments.some((item) => item.status === 'ready')
+  const uploadingAttachment = pendingAttachments.some((item) => item.status === 'uploading')
+  sendButton.disabled =
+    !connected ||
+    approvalPending ||
+    questionPending ||
+    uploadingAttachment ||
+    (!input.value.trim() && !readyAttachment)
   stopButton.hidden = !snapshot.running
   stopButton.disabled = !connected
   input.disabled = !connected || approvalPending || questionPending
@@ -1257,24 +1416,37 @@ function updateComposer() {
     : questionPending
       ? '请在上方问题卡中选择或填写答案'
       : snapshot.running
-      ? 'Enter 排队 · Ctrl/Cmd+Enter 转向 · ■ 停止'
-      : 'Enter 发送 · Shift+Enter 换行'
+      ? 'Enter 排队 · Ctrl/Cmd+Enter 转向 · ■ 停止 · 可拖入图片/文件'
+      : 'Enter 发送 · Shift+Enter 换行 · 可拖入图片/文件'
 }
 
 async function sendMessage(mode) {
   const input = $('quick-input')
   const text = input.value.trim()
-  if (!text || !snapshot.activeSessionId) return
+  const readyAttachments = pendingAttachments.filter((item) => item.status === 'ready')
+  const uploadingAttachment = pendingAttachments.some((item) => item.status === 'uploading')
+  if (!snapshot.activeSessionId || uploadingAttachment) return
+  if (!text && readyAttachments.length === 0) return
   const previous = input.value
   input.value = ''
   input.style.height = ''
   updateComposer()
   try {
-    const result = await post({ type: 'prompt', text, mode })
+    const result = await post({
+      type: 'prompt',
+      text,
+      mode,
+      attachments: readyAttachments.map((item) => ({
+        receiptId: item.receiptId,
+        kind: item.kind,
+        name: item.name,
+      })),
+    })
     if (!result || !result.ok) {
       input.value = previous
       setSync(result && result.error ? `发送失败：${result.error}` : '发送失败')
     } else {
+      clearAttachments()
       setSync(mode === 'steer' ? '已转向' : '已发送')
     }
   } catch (_error) {
@@ -1330,6 +1502,7 @@ async function refresh(force) {
     const previousFeedSource = snapshot.feedSource
     const previousApproval = snapshot.approval
     const previousQuestion = questionSignature
+    const previousSessionId = snapshot.activeSessionId
     snapshot = {
       ...snapshot,
       ...next,
@@ -1347,6 +1520,7 @@ async function refresh(force) {
       activeSessionId: typeof next.activeSessionId === 'string' ? next.activeSessionId : null,
     }
     renderApprovalLock()
+    if (snapshot.activeSessionId !== previousSessionId) clearAttachments()
     if (snapshot.running && !lastRunning) {
       runStartedAt = Date.now()
       doneUntil = 0
@@ -1909,19 +2083,9 @@ function wireDue() {
   $('due-done').addEventListener('click', () => completeDue('done'))
 }
 
-function wireDropGuard() {
-  window.addEventListener('dragover', (event) => {
-    event.preventDefault()
-  })
-  window.addEventListener('drop', (event) => {
-    event.preventDefault()
-    setSync('独立窗暂不支持拖入图片，请在 DSH 面板发送')
-  })
-}
-
 function boot() {
   tick()
-  wireDropGuard()
+  wireAttachments()
   wireTodos()
   wireReminders()
   wireDue()

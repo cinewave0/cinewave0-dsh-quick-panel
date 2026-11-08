@@ -32,6 +32,8 @@ let approval = {
 let question = null
 const answers = []
 const questionAnswers = []
+const uploads = []
+const prompts = []
 
 const server = createServer((request, response) => {
   const url = new URL(request.url, origin)
@@ -141,6 +143,16 @@ const server = createServer((request, response) => {
     response.end(JSON.stringify(lockRequests))
     return
   }
+  if (url.pathname === '/test/prompts') {
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.end(JSON.stringify(prompts))
+    return
+  }
+  if (url.pathname === '/test/uploads') {
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.end(JSON.stringify(uploads))
+    return
+  }
   if (url.pathname === '/test/approval') {
     approvalNo += 1
     approval = {
@@ -183,6 +195,22 @@ const server = createServer((request, response) => {
     response.end(JSON.stringify(questionAnswers))
     return
   }
+  if (url.pathname === '/quick-panel/upload') {
+    let size = 0
+    request.on('data', (chunk) => {
+      size += chunk.length
+    })
+    request.on('end', () => {
+      const name = url.searchParams.get('name') || 'file'
+      const mediaType = url.searchParams.get('mediaType') || ''
+      uploads.push({ name, mediaType, sessionId: url.searchParams.get('sessionId'), size })
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(
+        JSON.stringify({ ok: true, receiptId: `receipt-${uploads.length}`, kind: mediaType ? 'image' : 'file', name, mediaType }),
+      )
+    })
+    return
+  }
   if (url.pathname === '/quick-panel/action') {
     let body = ''
     request.on('data', (chunk) => {
@@ -197,6 +225,9 @@ const server = createServer((request, response) => {
         }
         if (value && value.type === 'question-answer') {
           questionAnswers.push(value)
+        }
+        if (value && value.type === 'prompt') {
+          prompts.push(value)
         }
         if (value && value.type === 'set-approval-lock') {
           lockEnabled = Boolean(value.enabled)

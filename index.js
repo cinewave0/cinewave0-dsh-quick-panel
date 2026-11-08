@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROUTE_BASE = '/quick-panel'
 const MAX_BODY_BYTES = 2 * 1024 * 1024
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 /** Preview images are normalized by DSH, but keep one bad attachment from filling memory. */
 const MAX_PREVIEW_IMAGE_BYTES = 16 * 1024 * 1024
 const IMAGE_CACHE_BYTES = 48 * 1024 * 1024
@@ -460,6 +461,16 @@ function readBody(request) {
     request.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
     request.on('error', reject)
   })
+}
+
+/** Stream one raw upload while enforcing a hard byte ceiling. */
+async function* limitedUploadChunks(request, limit) {
+  let size = 0
+  for await (const chunk of request) {
+    size += chunk.length
+    if (size > limit) throw new Error('upload too large')
+    yield chunk
+  }
 }
 
 export function apply(ctx) {
@@ -1183,6 +1194,53 @@ export function apply(ctx) {
     },
   }
 
+  const uploadRoute = {
+    kind: 'exact',
+    path: `${ROUTE_BASE}/upload`,
+    handler: async (request, response) => {
+      const url = requestUrl(request)
+      if (!url) return sendJson(response, 400, { ok: false, error: 'bad-request' })
+      if (request.method !== 'POST') return sendJson(response, 405, { ok: false, error: 'method' })
+      if (tokenFrom(request, url) !== token) {
+        return sendJson(response, 401, { ok: false, error: 'unauthorized' })
+      }
+      const sessionId = url.searchParams.get('sessionId') || ''
+      if (!sessionId || sessionId !== state.activeSessionId) {
+        return sendJson(response, 409, { ok: false, error: 'session-mismatch' })
+      }
+      const uploads = ctx.get('fileUploads')
+      if (!uploads || typeof uploads.uploadStream !== 'function') {
+        return sendJson(response, 503, { ok: false, error: 'upload-unavailable' })
+      }
+      const name = (url.searchParams.get('name') || 'file').slice(0, 200)
+      const mediaType = (url.searchParams.get('mediaType') || '').toLowerCase()
+      const isImage = IMAGE_MEDIA_TYPES.has(mediaType)
+      const data = limitedUploadChunks(request, MAX_UPLOAD_BYTES)
+      try {
+        const result = isImage
+          ? await uploads.uploadImageStream({ sessionId, data, mediaType, name })
+          : await uploads.uploadStream({ sessionId, data, name })
+        const receiptId = result && typeof result.receiptId === 'string' ? result.receiptId : ''
+        if (!receiptId) return sendJson(response, 502, { ok: false, error: 'missing-receipt' })
+        note(`upload staged ${isImage ? 'image' : 'file'} ${name} session=${sessionId}`)
+        return sendJson(response, 200, {
+          ok: true,
+          receiptId,
+          kind: isImage ? 'image' : 'file',
+          name,
+          mediaType: isImage ? mediaType : 'application/octet-stream',
+        })
+      } catch (error) {
+        note(`upload failed ${name}: ${String((error && error.message) || error)}`)
+        return sendJson(response, 400, {
+          ok: false,
+          error: String((error && error.message) || error),
+          code: error && error.code,
+        })
+      }
+    },
+  }
+
   const actionRoute = {
     kind: 'exact',
     path: `${ROUTE_BASE}/action`,
@@ -1335,15 +1393,25 @@ export function apply(ctx) {
           }
         }
         const text = typeof body.text === 'string' ? body.text.trim() : ''
-        if (!text) return sendJson(response, 400, { ok: false, error: 'empty-text' })
+        const attachments = (Array.isArray(body.attachments) ? body.attachments : [])
+          .map((item) => (item && typeof item.receiptId === 'string' ? item.receiptId.trim() : ''))
+          .filter((receiptId) => receiptId.length > 0 && receiptId.length <= 200)
+          .slice(0, 20)
+        if (!text && attachments.length === 0) {
+          return sendJson(response, 400, { ok: false, error: 'empty-text' })
+        }
         const mode = body.mode === 'steer' ? 'steer' : 'queue'
+        const content = [
+          ...attachments.map((receiptId) => ({ type: 'file', receiptId })),
+          ...(text ? [{ type: 'text', text: text.slice(0, 32000) }] : []),
+        ]
         try {
           const result = await controller.prompt(
             {
               requestId: randomUUID(),
               sessionId,
               mode,
-              content: [{ type: 'text', text: text.slice(0, 32000) }],
+              content,
             },
             AbortSignal.timeout(30000),
           )
@@ -1520,6 +1588,7 @@ export function apply(ctx) {
       webServer.register(configRoute),
       webServer.register(stateRoute),
       webServer.register(attachmentRoute),
+      webServer.register(uploadRoute),
       webServer.register(actionRoute),
       ...assetRoutes.map((route) => webServer.register(route)),
     ]

@@ -51,6 +51,7 @@ function makeHarness(name, options = {}) {
         }
       }
       if (service === 'sessionController') return options.sessionController || null
+      if (service === 'fileUploads') return options.fileUploads || null
       if (service === 'deepseekAccount') return options.account || null
       return null
     },
@@ -321,6 +322,65 @@ test('approval lock does not claim without a live companion heartbeat', async ()
     assert.equal(result, 'builtin')
     assert.equal(nextCalls, 1)
     assert.equal((await harness.state()).approval, null)
+  } finally {
+    harness.cleanup()
+  }
+})
+
+test('upload staging feeds prompt attachments', async () => {
+  const prompts = []
+  const fileUploads = {
+    async uploadStream({ sessionId, data, name }) {
+      let bytes = 0
+      for await (const chunk of data) bytes += chunk.length
+      return { receiptId: `receipt-${name}`, file: { ref: name, sessionId, bytes } }
+    },
+    async uploadImageStream({ sessionId, data, name, mediaType }) {
+      let bytes = 0
+      for await (const chunk of data) bytes += chunk.length
+      return { receiptId: `receipt-${name}`, image: { ref: name, sessionId, mediaType, bytes } }
+    },
+  }
+  const sessionController = {
+    prompt: async (request) => {
+      prompts.push(request)
+      return { accepted: true }
+    },
+  }
+  const harness = makeHarness('upload', { activeSessionId: 'session-test', fileUploads, sessionController })
+  try {
+    const body = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    const uploaded = await harness.call(
+      `/quick-panel/upload?sessionId=session-test&name=drop.png&mediaType=image/png&${harness.query}`,
+      {
+        method: 'POST',
+        body,
+        headers: { 'content-type': 'application/octet-stream', 'x-quick-panel-token': harness.token },
+      },
+    )
+    assert.equal(uploaded.status, 200)
+    assert.equal(uploaded.json.ok, true)
+    assert.equal(uploaded.json.kind, 'image')
+    assert.equal(uploaded.json.receiptId, 'receipt-drop.png')
+
+    const mismatch = await harness.call(
+      `/quick-panel/upload?sessionId=session-other&name=x.txt&${harness.query}`,
+      { method: 'POST', body: Buffer.from('x'), headers: { 'x-quick-panel-token': harness.token } },
+    )
+    assert.equal(mismatch.status, 409)
+
+    const prompted = await harness.post({
+      type: 'prompt',
+      text: '看图',
+      attachments: [{ receiptId: 'receipt-drop.png', kind: 'image', name: 'drop.png' }],
+    })
+    assert.equal(prompted.status, 200)
+    assert.equal(prompts.length, 1)
+    assert.equal(prompts[0].sessionId, 'session-test')
+    assert.deepEqual(prompts[0].content, [
+      { type: 'file', receiptId: 'receipt-drop.png' },
+      { type: 'text', text: '看图' },
+    ])
   } finally {
     harness.cleanup()
   }

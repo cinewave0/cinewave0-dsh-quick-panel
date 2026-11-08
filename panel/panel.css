@@ -670,6 +670,93 @@ body.mode-island .clock-side {
   color: var(--text);
 }
 
+.attachment-strip {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.attachment-chip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 210px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--layer);
+}
+
+.attachment-chip img {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  object-fit: cover;
+  border-radius: 5px;
+}
+
+.attachment-name {
+  max-width: 120px;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-state {
+  flex: none;
+  color: var(--sub);
+  font-size: 9.5px;
+}
+
+.attachment-chip.is-error {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+}
+
+.attachment-chip.is-error .attachment-state {
+  color: var(--danger);
+}
+
+.attachment-remove {
+  flex: none;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--sub);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.attachment-remove:hover {
+  color: var(--text);
+}
+
+.drop-hint {
+  display: none;
+  margin-bottom: 6px;
+  padding: 6px;
+  border: 1px dashed var(--gold);
+  border-radius: 8px;
+  color: var(--gold);
+  font-size: 11px;
+  text-align: center;
+}
+
+body.drop-active .drop-hint {
+  display: block;
+}
+
+body.drop-active .footer {
+  outline: 2px dashed color-mix(in srgb, var(--gold) 60%, transparent);
+  outline-offset: -2px;
+}
+
 .count {
   font-size: 10px;
   opacity: 0.75;
