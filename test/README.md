@@ -14,6 +14,7 @@ node test/host.test.mjs
 - 图片附件注册、读取、缓存；
 - 审批接管：allow / reject / stale / 其他对话委派 / 已有 pending 委派；
 - 用量：30 日聚合、当前会话 fallback、余额缓存；
+- 最近会话：5 个槽位、按活动时间排序、归档过滤、切换请求与 ack、非法/未知 id 拒绝；
 - 问题卡：问题镜像、答案请求、ack 清理；
 - Host feed：种子回填、live 事件追加、客户端 feed 优先。
 
@@ -29,8 +30,8 @@ node test/panel.test.mjs
 
 1. 起一个假 Host，给面板喂固定数据；
 2. 启动 Electron 打开独立窗页面；
-3. 自动断言：时钟/余额同尺寸、三项指标同日期字号、审批卡显示、Enter 允许、Esc 拒绝、输入框锁定、待办/提醒序号、问题卡显示/选项/提交、缩略图加载、点击看原图；
-4. 把截图写到 `test/output/panel.png`。
+3. 自动断言：时钟/余额同尺寸、三项指标同日期字号、审批卡显示、Enter 允许、Esc 拒绝、输入框锁定、待办/提醒序号、问题卡显示/选项/提交、缩略图加载、点击看原图、最近会话数字槽（5 格、当前高亮、点击发出切换请求、脉冲与恢复）；
+4. 把截图写到 `test/output/panel.png`（整窗）和 `test/output/feed-header.png`（滚动到实时消息标题栏）。
 
 注意：如果 PowerShell 本身在受限沙箱里，Electron 可能因命名管道被拒绝而启动失败；在普通终端运行即可。
 
@@ -39,11 +40,11 @@ node test/panel.test.mjs
 不需要点 UI，可以只读 `/state`：
 
 ```powershell
-# 先取得 token（同源 Referer 兜底）
-$cfg = Invoke-RestMethod -Uri 'http://127.0.0.1:5602/quick-panel/config' `
-  -Headers @{ Referer='http://127.0.0.1:5602/' }
-Invoke-RestMethod -Uri ("http://127.0.0.1:5602/quick-panel/state?token=" + $cfg.token) |
-  Select-Object activeSessionId,sessionLabel,running,approval,usage
+# 先取得 token（同源 Referer 兜底）；端口每次启动可能变化，用 DSH_WEB_URL 或窗口地址里的端口
+$origin = $env:DSH_WEB_URL
+$cfg = Invoke-RestMethod -Uri "$origin/quick-panel/config" -Headers @{ Referer = "$origin/" }
+Invoke-RestMethod -Uri ("$origin/quick-panel/state?token=" + $cfg.token) |
+  Select-Object activeSessionId,recentSessions,switchRequest,running,approval,usage
 ```
 
 ## 4. 仍需要人工看的

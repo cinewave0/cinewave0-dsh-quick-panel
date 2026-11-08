@@ -32,6 +32,8 @@ https://cinewave0.github.io/cinewave0-dsh-quick-panel/market/index.json
 
 然后搜索 **Quick Panel** 安装 `1.0.4-beta.1`。索引固定到 v1.0.4-beta.1 的 Git commit。
 
+> 索引当前指向预发布版。想留在稳定版，用下面的 Release 包安装 `v1.0.3`。
+
 ### 方式二：Release 包
 
 从 [Releases](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases) 下载 `dsh-quick-panel-1.0.4-beta.1.tgz`，用 `SHA256SUMS` 校验，然后：
@@ -43,7 +45,7 @@ dsh plugin --profile desktop add <下载目录>\dsh-quick-panel-1.0.4-beta.1.tgz
 ### 方式三：git commit
 
 ```powershell
-dsh plugin --profile desktop add "git+https://github.com/cinewave0/cinewave0-dsh-quick-panel.git#0946c955a8d0d6d95b55ddf093bb4e8cece0e11b"
+dsh plugin --profile desktop add "git+https://github.com/cinewave0/cinewave0-dsh-quick-panel.git#88984c0df6ee39fa94023332a95042a351817dc4"
 ```
 
 安装后：
@@ -136,15 +138,18 @@ panel/                       独立窗页面（HTML/CSS/JS/icon）
 runtime/electron-helper/     独立窗主进程与 preload
 locale/                      插件标题/描述
 scripts/                     构建、备份、GitHub 同步、市场索引生成
-test/                        Host 回归、客户端 bundle envelope 测试
+test/                        Host 回归、客户端 bundle/适配层/源码导入、Electron 面板测试
 ```
 
 ## 开发命令
 
 ```powershell
 node scripts/build-client.mjs                    # 由 src/client 生成 client.js
-node test/host.test.mjs                          # Host 回归（7 项）
+node test/host.test.mjs                          # Host 回归（11 项）
 node test/client-bundle.test.mjs                 # 客户端 bundle 信封/工厂形状
+node test/dsh-adapter.test.mjs                   # DSH 服务适配层与降级路径
+node test/source-imports.test.mjs                # 源码模块导入完整性
+node test/panel.test.mjs                         # Electron 面板集成测试（需 electron.exe）
 npm run lint                                     # oxlint（0 warning 门槛）
 node scripts/backup.mjs                          # 备份到 ../backups（zip + sha256 + manifest）
 node scripts/sync-github.mjs --message "..."     # 提交 + 测试 + push
