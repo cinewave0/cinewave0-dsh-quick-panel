@@ -863,12 +863,25 @@ body.drop-active .footer {
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1.5px solid color-mix(in srgb, var(--border) 130%, var(--sub));
+  border: 1.5px solid color-mix(in srgb, var(--sub) 70%, var(--border));
   border-radius: 5px;
-  background: transparent;
+  background: color-mix(in srgb, var(--sub) 8%, transparent);
   color: var(--on-gold);
   font-size: 11px;
   cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.check:hover {
+  border-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+}
+
+.check:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--gold) 55%, transparent);
+  outline-offset: 1px;
 }
 
 .check.on {

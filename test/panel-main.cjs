@@ -56,6 +56,15 @@ app.whenReady().then(async () => {
     imageWidth: document.querySelector('.feed-image img')?.naturalWidth ?? 0,
     todoIndices: [...document.querySelectorAll('.todo-index')].map((node) => node.textContent),
     reminderIndices: [...document.querySelectorAll('.reminder-index')].map((node) => node.textContent),
+    todoCheck: (() => {
+      const box = document.querySelector('.todo .check');
+      const style = getComputedStyle(box);
+      return {
+        borderWidth: style.borderTopWidth,
+        borderColor: style.borderTopColor,
+        background: style.backgroundColor,
+      };
+    })(),
   })`)
   assert.equal(layout.clockFont, '30px')
   assert.equal(layout.balanceFont, '30px')
@@ -82,6 +91,9 @@ app.whenReady().then(async () => {
   assert.ok(layout.imageWidth > 0, 'thumbnail should load')
   assert.deepEqual(layout.todoIndices, ['1.', '2.'])
   assert.deepEqual(layout.reminderIndices, ['1.', '2.'])
+  assert.ok(Number.parseFloat(layout.todoCheck.borderWidth) >= 1, layout.todoCheck.borderWidth)
+  assert.notEqual(layout.todoCheck.borderColor, 'rgba(0, 0, 0, 0)')
+  assert.notEqual(layout.todoCheck.background, 'rgba(0, 0, 0, 0)')
 
   await win.webContents.executeJavaScript(`document.getElementById('approval-lock').click()`)
   await delay(900)
