@@ -6,6 +6,8 @@ import { join } from 'node:path'
 const root = join(import.meta.dirname, '..')
 const panelRoot = join(root, 'panel')
 const origin = 'http://127.0.0.1:38922'
+const dshHome = process.env.DSH_HOME || join(process.env.USERPROFILE || process.env.HOME || '', '.dsh')
+const electron = process.env.DSH_ELECTRON || join(dshHome, 'electron', 'electron.exe')
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGM8oaHBwMDAxAAGAA3qARx2dNdFAAAAAElFTkSuQmCC',
   'base64',
@@ -112,7 +114,7 @@ const server = createServer((request, response) => {
           contextPercent: 34.2,
           contextTokens: 358000,
           contextWindow: 1048576,
-          workingDirectory: 'D:\\workspace',
+          workingDirectory: 'D:\\Projects\\demo',
           model: 'deepseek-flash',
           modelProvider: 'deepseek-official',
           reasoningEffort: 'high',
@@ -217,7 +219,7 @@ const server = createServer((request, response) => {
 await new Promise((resolve) => server.listen(38922, '127.0.0.1', resolve))
 
 const child = spawn(
-  'C:\\Users\\user\\.dsh\\electron\\electron.exe',
+  electron,
   [
     '--no-sandbox',
     '--disable-gpu',

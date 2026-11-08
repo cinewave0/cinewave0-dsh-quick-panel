@@ -1,6 +1,6 @@
 # 快捷面板 / Quick Panel
 
-> 当前版本：1.0.2
+> 当前版本：1.0.3
 
 DSH Desktop 的快捷面板插件：在 DSH 窗口内提供一个浮岛与面板，并附带一个可常驻桌面的独立小应用（Electron 伴生窗）。
 
@@ -15,29 +15,39 @@ DSH Desktop 的快捷面板插件：在 DSH 窗口内提供一个浮岛与面板
 
 ## 安装
 
-在当前 profile 中通过插件管理安装本目录：
+本插件目前走 **GitHub 分发**（npm 发布暂缓）。
 
-```
-plugin_manager install_bundle  target = <项目目录>
-```
+### 方式一：DSH 插件市场（Discover）
 
-安装后：
-
-- **修改 `client.js`、`panel/` 资源**：刷新 DSH 页面即可；
-- **修改 `index.js`（Host 半区）**：需要重启 DSH；
-- **修改 `runtime/electron-helper/`**：托盘退出独立窗后重开。
-
-## 从 DSH 市场安装
-
-仓库公开并开启 GitHub Pages 后，DSH → Plugins → Discover / Settings 添加插件索引：
+插件 → 发现 → 添加索引源：
 
 ```text
 https://cinewave0.github.io/cinewave0-dsh-quick-panel/market/index.json
 ```
 
-然后搜索 `Quick Panel` 安装 1.0.2。索引固定到 Git commit，版本更新后需要重新安装。
+然后搜索 **Quick Panel** 安装 `1.0.3`。索引固定到 v1.0.3 的 Git commit。
 
-不要把本目录的 `package.json` / `cordis.patch.yml` 手写进 profile；统一走 `install_bundle`。
+### 方式二：Release 包
+
+从 [Releases](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases) 下载 `dsh-quick-panel-1.0.3.tgz`，用 `SHA256SUMS` 校验，然后：
+
+```powershell
+dsh plugin --profile desktop add <下载目录>\dsh-quick-panel-1.0.3.tgz
+```
+
+### 方式三：git commit
+
+```powershell
+dsh plugin --profile desktop add "git+https://github.com/cinewave0/cinewave0-dsh-quick-panel.git#0946c955a8d0d6d95b55ddf093bb4e8cece0e11b"
+```
+
+安装后：
+
+- **修改 `client.js`、`panel/` 资源**：刷新 DSH 页面 / 重开独立窗；
+- **修改 `index.js`（Host 半区）**：需要重启 DSH；
+- **修改 `runtime/electron-helper/`**：托盘退出独立窗后重开。
+
+开发目录仍可通过 `plugin_manager install_bundle target = <项目目录>` 以 link 方式挂载，详见「开发目录」。
 
 ## 使用
 

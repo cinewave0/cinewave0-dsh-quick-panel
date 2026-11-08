@@ -68,7 +68,7 @@ app.whenReady().then(async () => {
   assert.equal(layout.tps, '45 tok/s')
   assert.equal(layout.thirty, '1.20G')
   assert.equal(layout.context, '34%')
-  assert.equal(layout.workingDirectory, 'D:\\workspace')
+  assert.equal(layout.workingDirectory, 'D:\\Projects\\demo')
   assert.equal(layout.workingDirectoryHidden, false)
   assert.equal(layout.modelInfo, 'deepseek-flash · 高')
   assert.equal(layout.modelInfoHidden, false)

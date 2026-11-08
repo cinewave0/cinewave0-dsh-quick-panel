@@ -2,7 +2,7 @@
 
 仓库：<https://github.com/cinewave0/cinewave0-dsh-quick-panel>
 
-**当前状态：仓库已推送并设为私密；GitHub Pages 在私密状态下不可访问（HTTP 404）。脱敏完成后，把仓库改回 public，并在 Settings → Pages 重新开启 Pages。**
+**当前状态：GitHub 路线（npm 暂缓）。仓库转 public 后，在 Settings → Pages 开启 `main / (root)`，索引固定到 v1.0.3 的 commit `0946c955a8d0d6d95b55ddf093bb4e8cece0e11b`。**
 
 DSH 市场不是上传到某个后台，而是读取一个 **HTTPS 上的 plugin market index JSON**。  
 本项目的索引文件是 `market/index.json`，发布后地址为：
@@ -170,3 +170,20 @@ node scripts/sync-github.mjs --tags --message "release: v1.0.2"
 ```
 
 npm 账号没解决之前，先把 Release 作为分发渠道；以后补上 `NPM_TOKEN` 即可自动发布。
+
+## 11. GitHub 路线正式发布
+
+1. 仓库转 **public**（Settings → General → Danger Zone）；
+2. Settings → Pages：Source = `Deploy from a branch`，Branch = `main`，目录 `/ (root)`；
+3. 确认索引可访问且格式正确：
+
+```powershell
+curl.exe -sS https://cinewave0.github.io/cinewave0-dsh-quick-panel/market/index.json
+```
+
+4. `market/index.json` 的 source 用 **git commit**，指向已发布的 tag 对应 commit；
+5. 每个新版本：先打 `vX.Y.Z` tag 触发 Release，再把 `market/index.json` 的版本/commit 更新到该 tag，提交并推送（Pages 会自动重建）。
+
+当前已发布：`v1.0.3`（commit `0946c95`），索引 source 已指向该 commit。
+
+> npm 发布恢复后，可把 source 切回 `{"type":"npm"}` 并发布对应版本；两种路线可以并存，但索引里一个版本只有一个 source。
