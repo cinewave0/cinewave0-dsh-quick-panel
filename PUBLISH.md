@@ -186,4 +186,6 @@ curl.exe -sS https://cinewave0.github.io/cinewave0-dsh-quick-panel/market/index.
 
 当前已发布：`v1.0.4-beta.1`（commit `88984c0`），索引 source 已指向该 commit；上一稳定版 `v1.0.3`（commit `6ec9490`）。beta tag 由 Release workflow 标记为 Pre-release，不会顶掉 Latest。
 
+> **待办（2026-11-08）**：`v1.0.4-beta.1` 的 tag 快照是 `1d59b0c`，其 README/`docs/panel.png` 早于之后的文档提交（`c2d6967`、`dbe8150`）。正式版发布时，把 README、`docs/panel.png`、`SECURITY.md`、测试说明与 Release 说明一并刷新，避免 tag 快照与 `main` 不一致。
+
 > npm 发布恢复后，可把 source 切回 `{"type":"npm"}` 并发布对应版本；两种路线可以并存，但索引里一个版本只有一个 source。
