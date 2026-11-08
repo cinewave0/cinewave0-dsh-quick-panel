@@ -476,6 +476,7 @@ body.mode-island .clock-side {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   margin-bottom: 6px;
   color: var(--sub);
   font-size: 10.5px;
@@ -761,6 +762,69 @@ body.drop-active .footer {
   font-size: 10px;
   opacity: 0.75;
   font-variant-numeric: tabular-nums;
+}
+
+/* five numbered slots between the feed title and its status */
+
+.session-switch {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.session-switch[hidden] {
+  display: none;
+}
+
+.session-slot {
+  min-width: 17px;
+  height: 16px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--sub);
+  font: inherit;
+  font-size: 9.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.session-slot:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--brand);
+}
+
+.session-slot:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.session-slot.is-active {
+  background: var(--brand);
+  border-color: transparent;
+  color: #fff;
+  cursor: default;
+}
+
+.session-slot.is-pending {
+  border-color: var(--brand);
+  color: var(--brand);
+  animation: session-slot-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes session-slot-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .capture {

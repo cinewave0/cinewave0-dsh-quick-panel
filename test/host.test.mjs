@@ -30,6 +30,32 @@ function makeHarness(name, options = {}) {
       JSON.stringify({ version: 1, record: { identity: options.projection.id, rows: [options.projection.row] } }),
     )
   }
+  if (options.projections) {
+    const directory = join(home, 'storages', 'session_projcache', 'sessions')
+    mkdirSync(directory, { recursive: true })
+    for (const projection of options.projections) {
+      writeFileSync(
+        join(directory, `${projection.id}.json`),
+        JSON.stringify({ version: 1, record: { identity: projection.id, rows: [projection.row] } }),
+      )
+    }
+  }
+  if (options.archivedSessionIds) {
+    mkdirSync(join(home, 'storages'), { recursive: true })
+    writeFileSync(
+      join(home, 'storages', 'workspace.json'),
+      JSON.stringify({
+        unit: { name: 'workspace', version: 2 },
+        global: {
+          initialized: true,
+          workspaceIds: [],
+          archivedSessionIds: options.archivedSessionIds,
+          pinnedSessionIds: [],
+        },
+        tables: { workspaces: {} },
+      }),
+    )
+  }
   process.env.DSH_HOME = home
 
   const routes = new Map()
@@ -436,6 +462,63 @@ test('usage aggregation, current-session fallback and balance cache', async () =
     assert.equal(state.usage.balance.status, 'ready')
     assert.equal(state.usage.balance.wallets[0].balance, '12.34')
     assert.equal(balanceCalls, 1)
+  } finally {
+    harness.cleanup()
+  }
+})
+
+test('recent sessions expose five switches, skip archived ones and relay a switch', async () => {
+  const now = Date.now()
+  const row = (at) => ({ sessionListMetadata: { ver: 1, seq: 1, val: { lastPromptAt: at } } })
+  const projections = [
+    { id: 'session-a', row: row(now - 1000) },
+    { id: 'session-archived', row: row(now - 500) },
+    { id: 'session-b', row: row(now - 5000) },
+    { id: 'session-c', row: row(now - 9000) },
+    { id: 'session-d', row: row(now - 13000) },
+    { id: 'session-e', row: row(now - 17000) },
+    { id: 'session-f', row: row(now - 21000) },
+  ]
+  const harness = makeHarness('recent', {
+    activeSessionId: 'session-a',
+    projections,
+    archivedSessionIds: ['session-archived'],
+  })
+  try {
+    let state = await harness.state()
+    assert.deepEqual(
+      state.recentSessions.map((item) => item.sessionId),
+      ['session-a', 'session-b', 'session-c', 'session-d', 'session-e'],
+    )
+    assert.equal(state.switchRequest, null)
+
+    const active = await harness.post({ type: 'switch-session', sessionId: 'session-a' })
+    assert.equal(active.status, 200)
+    assert.equal(active.json.alreadyActive, true)
+
+    const missing = await harness.post({ type: 'switch-session', sessionId: 'session-missing' })
+    assert.equal(missing.status, 409)
+    const traversal = await harness.post({ type: 'switch-session', sessionId: '../workspace' })
+    assert.equal(traversal.status, 409)
+    const empty = await harness.post({ type: 'switch-session' })
+    assert.equal(empty.status, 400)
+
+    const switched = await harness.post({ type: 'switch-session', sessionId: 'session-c' })
+    assert.equal(switched.status, 200)
+    assert.equal(switched.json.ok, true)
+    state = await harness.state()
+    assert.equal(state.switchRequest.sessionId, 'session-c')
+    assert.equal(state.switchRequest.id, switched.json.id)
+
+    await harness.post({ type: 'switch-session-ack', id: switched.json.id })
+    state = await harness.state()
+    assert.equal(state.switchRequest, null)
+
+    await harness.post({ type: 'switch-session', sessionId: 'session-d' })
+    await harness.post({ activeSessionId: 'session-d' })
+    state = await harness.state()
+    assert.equal(state.activeSessionId, 'session-d')
+    assert.equal(state.switchRequest, null)
   } finally {
     harness.cleanup()
   }

@@ -865,6 +865,12 @@ window.__ModuleLoader__.load({
           focusHandler: null,
           visibilityHandler: null,
           lastQuestionAnswerId: "",
+          /** Asks the DSH page to open a Session; set once by main.js. */
+          switcher: null,
+          lastSwitchRequestId: "",
+          setSwitcher(switcher) {
+            this.switcher = typeof switcher === "function" ? switcher : null;
+          },
           async init() {
             try {
               const injected = window.__QUICK_PANEL_CONFIG__;
@@ -1058,6 +1064,33 @@ window.__ModuleLoader__.load({
             } catch (_error) {
             }
           },
+          /** Apply a numbered-switch request from the companion, then acknowledge it. */
+          async handleSwitchRequest(request) {
+            if (!request || typeof request !== "object") return;
+            const id = typeof request.id === "string" ? request.id : "";
+            if (!id || id === this.lastSwitchRequestId) return;
+            this.lastSwitchRequestId = id;
+            const sessionId = typeof request.sessionId === "string" ? request.sessionId : "";
+            let ok = false;
+            if (sessionId && this.switcher) {
+              try {
+                ok = this.switcher(sessionId) === true;
+              } catch (_error) {
+                ok = false;
+              }
+            }
+            try {
+              await fetch(`${HOST_ROUTE}/action?token=${encodeURIComponent(this.token)}`, {
+                method: "POST",
+                headers: {
+                  "content-type": "application/json",
+                  "x-quick-panel-token": this.token
+                },
+                body: JSON.stringify({ type: "switch-session-ack", id, ok })
+              });
+            } catch (_error) {
+            }
+          },
           async pushLive() {
             if (!this.ready || !this.token) return;
             if (!store.state.companionOpen) return;
@@ -1115,6 +1148,7 @@ window.__ModuleLoader__.load({
               if (state.companionOpen && !wasOpen) this.scheduleLive(true);
             }
             await this.handleQuestionAnswer(state.questionAnswer);
+            await this.handleSwitchRequest(state.switchRequest);
             const rev = Number.isFinite(state.rev) ? state.rev : 0;
             if (rev === this.rev) return;
             this.applying = true;
@@ -1231,6 +1265,21 @@ window.__ModuleLoader__.load({
               try {
                 layout.selectPanel("schedules");
               } catch (_error) {
+              }
+            },
+            /**
+             * Navigate to a Session the way the sidebar does. Returns whether the
+             * navigation was accepted; the Host companion ack reflects it either way.
+             */
+            switchSession(sessionId) {
+              if (typeof sessionId !== "string" || !sessionId) return false;
+              const workspace = get("uiWorkspace");
+              if (!workspace || typeof workspace.openSession !== "function") return false;
+              try {
+                workspace.openSession(sessionId);
+                return true;
+              } catch (_error) {
+                return false;
               }
             },
             loadOlder(sessionId) {
@@ -3369,6 +3418,7 @@ window.__ModuleLoader__.load({
         function apply(ctx) {
           hostSync.ctx = ctx;
           const dsh = createDsh(ctx);
+          hostSync.setSwitcher((sessionId) => dsh.switchSession(sessionId));
           dsh.bindQuestions((uiSession) => {
             hostSync.uiSession = uiSession;
             hostSync.bindQuestions();

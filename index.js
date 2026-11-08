@@ -36,6 +36,12 @@ const IMAGE_CACHE_ENTRIES = 16
 const IMAGE_REF_ENTRIES = 400
 const IMAGE_REF_MAX_LENGTH = 8192
 const IMAGE_MEDIA_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
+/** The companion mirrors DSH's sidebar as five numbered, title-less switches. */
+const RECENT_SESSION_LIMIT = 5
+const RECENT_SESSION_TTL = 3000
+const SESSION_SWITCH_TTL = 30000
+/** Session ids are used to build a projection file path; keep them path-safe. */
+const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/u
 const packageRoot = dirname(fileURLToPath(import.meta.url))
 const panelDirectory = join(packageRoot, 'panel')
 
@@ -64,6 +70,31 @@ function stateFile() {
 function sessionProjectionsDirectory() {
   const home = process.env.DSH_HOME || join(homedir(), '.dsh')
   return join(home, 'storages', 'session_projcache', 'sessions')
+}
+
+/** The Workspace store records which Sessions DSH hides from its sidebar. */
+function workspaceStorageFile() {
+  const home = process.env.DSH_HOME || join(homedir(), '.dsh')
+  return join(home, 'storages', 'workspace.json')
+}
+
+/** Last activity of one projection row: prompt time, message time, then file mtime. */
+function sessionProjectionLastAt(row, path) {
+  let lastAt =
+    row && row.sessionListMetadata && row.sessionListMetadata.val
+      ? row.sessionListMetadata.val.lastPromptAt
+      : undefined
+  if (!Number.isFinite(lastAt)) {
+    lastAt = row && row.timeContext && row.timeContext.val ? row.timeContext.val.lastMessageTime : undefined
+  }
+  if (!Number.isFinite(lastAt)) {
+    try {
+      lastAt = statSync(path).mtimeMs
+    } catch (_error) {
+      return null
+    }
+  }
+  return Number.isFinite(lastAt) ? lastAt : null
 }
 
 /** Token buckets the meter records for one Session. */
@@ -492,6 +523,8 @@ export function apply(ctx) {
     questionDebug: null,
     dshFocused: null,
     dshVisible: null,
+    /** A switch the companion asked for; the DSH page acknowledges and clears it. */
+    switchRequest: null,
   }
   let approvalSeq = 0
   let pendingApproval = null
@@ -512,6 +545,9 @@ export function apply(ctx) {
     inFlight: false,
     view: { status: 'loading', wallets: [], bonusWallets: [] },
   }
+  /** Projection file stats kept between recent-Session scans. */
+  let projectionMetaCache = new Map()
+  let recentSessionsCache = { at: 0, items: [] }
   let child = null
   let companionBeat = 0
   let companionSpawnedAt = 0
@@ -916,22 +952,8 @@ export function apply(ctx) {
       const tokenValue = row.tokenUsage && row.tokenUsage.val
       const totals = tokenValue && tokenValue.totals
       if (!totals) continue
-      let lastAt =
-        row.sessionListMetadata &&
-        row.sessionListMetadata.val &&
-        row.sessionListMetadata.val.lastPromptAt
-      if (!Number.isFinite(lastAt)) {
-        lastAt =
-          row.timeContext && row.timeContext.val && row.timeContext.val.lastMessageTime
-      }
-      if (!Number.isFinite(lastAt)) {
-        try {
-          lastAt = statSync(path).mtimeMs
-        } catch (_error) {
-          continue
-        }
-      }
-      if (lastAt < cutoff) continue
+      const lastAt = sessionProjectionLastAt(row, path)
+      if (lastAt === null || lastAt < cutoff) continue
       const tokens = tokenBucketTotal(totals)
       const outputTokens =
         Number.isFinite(totals.outputTokens) && totals.outputTokens > 0
@@ -951,6 +973,92 @@ export function apply(ctx) {
     }
     usageCache = next
     return usageCache
+  }
+
+  /** Sessions DSH hides from its sidebar; the numbered switches skip them too. */
+  const archivedSessionIds = () => {
+    try {
+      const parsed = JSON.parse(readFileSync(workspaceStorageFile(), 'utf8'))
+      const ids = parsed && parsed.global ? parsed.global.archivedSessionIds : null
+      if (!Array.isArray(ids)) return new Set()
+      return new Set(ids.filter((id) => typeof id === 'string' && id))
+    } catch (_error) {
+      return new Set()
+    }
+  }
+
+  /**
+   * The five most recently active Sessions, ranked the way DSH's sidebar ranks
+   * them (last prompt time, then last message time). Only file stats are read
+   * while a projection is unchanged, so this stays cheap at panel poll rates.
+   */
+  const refreshRecentSessions = () => {
+    const now = Date.now()
+    if (recentSessionsCache.at && now - recentSessionsCache.at < RECENT_SESSION_TTL) {
+      return recentSessionsCache.items
+    }
+    const directory = sessionProjectionsDirectory()
+    let names = []
+    try {
+      names = readdirSync(directory)
+    } catch (_error) {
+      recentSessionsCache = { at: now, items: [] }
+      return recentSessionsCache.items
+    }
+    const archived = archivedSessionIds()
+    const nextMeta = new Map()
+    const items = []
+    for (const name of names) {
+      if (!name.endsWith('.json')) continue
+      const id = name.slice(0, -5)
+      const path = join(directory, name)
+      let stat
+      try {
+        stat = statSync(path)
+      } catch (_error) {
+        continue
+      }
+      const cached = projectionMetaCache.get(name)
+      let lastAt = null
+      if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+        lastAt = cached.lastAt
+      } else {
+        try {
+          const parsed = JSON.parse(readFileSync(path, 'utf8'))
+          const rows = parsed && parsed.record ? parsed.record.rows : null
+          const row = Array.isArray(rows) ? rows[0] : rows
+          lastAt = sessionProjectionLastAt(row, path)
+        } catch (_error) {
+          lastAt = sessionProjectionLastAt(null, path)
+        }
+      }
+      nextMeta.set(name, { mtimeMs: stat.mtimeMs, size: stat.size, lastAt })
+      if (lastAt === null || archived.has(id)) continue
+      items.push({ sessionId: id, updatedAt: lastAt })
+    }
+    projectionMetaCache = nextMeta
+    items.sort(
+      (left, right) => right.updatedAt - left.updatedAt || (left.sessionId < right.sessionId ? -1 : 1),
+    )
+    recentSessionsCache = { at: now, items: items.slice(0, RECENT_SESSION_LIMIT) }
+    return recentSessionsCache.items
+  }
+
+  /** Whether a Session the companion may switch to exists on disk. */
+  const sessionProjectionKnown = (sessionId) => {
+    if (typeof sessionId !== 'string' || !SESSION_ID_PATTERN.test(sessionId)) return false
+    try {
+      return existsSync(join(sessionProjectionsDirectory(), `${sessionId}.json`))
+    } catch (_error) {
+      return false
+    }
+  }
+
+  /** Drop a switch request the DSH page never acknowledged. */
+  const expireSwitchRequest = () => {
+    if (live.switchRequest && Date.now() - live.switchRequest.at > SESSION_SWITCH_TTL) {
+      live.switchRequest = null
+    }
   }
 
   const usageView = () => {
@@ -1109,6 +1217,7 @@ export function apply(ctx) {
         return sendJson(response, 401, { ok: false, error: 'unauthorized' })
       }
       ensureHostFeed()
+      expireSwitchRequest()
       const clientFeedFresh = live.feedAt > 0 && Date.now() - live.feedAt < 5000
       const useHostFeed =
         hostFeed.length > 0 &&
@@ -1123,6 +1232,8 @@ export function apply(ctx) {
         settings: state.settings,
         activeSessionId: state.activeSessionId,
         sessionLabel: sessionLabel(),
+        recentSessions: refreshRecentSessions(),
+        switchRequest: live.switchRequest,
         companionOpen: companionIsOpen(),
         feed,
         feedSource: useHostFeed ? 'host' : 'client',
@@ -1359,6 +1470,24 @@ export function apply(ctx) {
         }
         return sendJson(response, 200, { ok: true })
       }
+      if (body.type === 'switch-session') {
+        const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : ''
+        if (!sessionId) return sendJson(response, 400, { ok: false, error: 'invalid-session' })
+        if (sessionId === state.activeSessionId) {
+          return sendJson(response, 200, { ok: true, alreadyActive: true, id: null })
+        }
+        if (!sessionProjectionKnown(sessionId)) {
+          return sendJson(response, 409, { ok: false, error: 'unknown-session' })
+        }
+        live.switchRequest = { id: randomUUID(), sessionId, at: Date.now() }
+        note(`switch requested ${sessionId}`)
+        return sendJson(response, 200, { ok: true, id: live.switchRequest.id })
+      }
+      if (body.type === 'switch-session-ack') {
+        const id = typeof body.id === 'string' ? body.id : ''
+        if (live.switchRequest && live.switchRequest.id === id) live.switchRequest = null
+        return sendJson(response, 200, { ok: true })
+      }
       if (body.type === 'approval-answer') {
         const key = typeof body.key === 'string' ? body.key : ''
         const outcome = body.outcome === 'allow' ? 'allow' : body.outcome === 'reject' ? 'reject' : ''
@@ -1511,6 +1640,9 @@ export function apply(ctx) {
         live.questionDebug = null
         live.running = false
         live.partial = null
+        if (live.switchRequest && live.switchRequest.sessionId === next.activeSessionId) {
+          live.switchRequest = null
+        }
         hostFeedSession = null
         hostFeed = []
         hostFeedHasOlder = false

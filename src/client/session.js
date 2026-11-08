@@ -372,6 +372,13 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
       focusHandler: null,
       visibilityHandler: null,
       lastQuestionAnswerId: '',
+      /** Asks the DSH page to open a Session; set once by main.js. */
+      switcher: null,
+      lastSwitchRequestId: '',
+
+      setSwitcher(switcher) {
+        this.switcher = typeof switcher === 'function' ? switcher : null
+      },
 
       async init() {
         try {
@@ -601,6 +608,35 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
         }
       },
 
+      /** Apply a numbered-switch request from the companion, then acknowledge it. */
+      async handleSwitchRequest(request) {
+        if (!request || typeof request !== 'object') return
+        const id = typeof request.id === 'string' ? request.id : ''
+        if (!id || id === this.lastSwitchRequestId) return
+        this.lastSwitchRequestId = id
+        const sessionId = typeof request.sessionId === 'string' ? request.sessionId : ''
+        let ok = false
+        if (sessionId && this.switcher) {
+          try {
+            ok = this.switcher(sessionId) === true
+          } catch (_error) {
+            ok = false
+          }
+        }
+        try {
+          await fetch(`${HOST_ROUTE}/action?token=${encodeURIComponent(this.token)}`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'x-quick-panel-token': this.token,
+            },
+            body: JSON.stringify({ type: 'switch-session-ack', id, ok }),
+          })
+        } catch (_error) {
+          /* the Host expires the request on its own */
+        }
+      },
+
       async pushLive() {
         if (!this.ready || !this.token) return
         // The Host live mirror only serves the companion; skip it while closed.
@@ -663,6 +699,7 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
           if (state.companionOpen && !wasOpen) this.scheduleLive(true)
         }
         await this.handleQuestionAnswer(state.questionAnswer)
+        await this.handleSwitchRequest(state.switchRequest)
         const rev = Number.isFinite(state.rev) ? state.rev : 0
         if (rev === this.rev) return
         this.applying = true

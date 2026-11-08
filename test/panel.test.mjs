@@ -34,6 +34,8 @@ const answers = []
 const questionAnswers = []
 const uploads = []
 const prompts = []
+const switches = []
+let switchRequest = null
 
 const server = createServer((request, response) => {
   const url = new URL(request.url, origin)
@@ -78,6 +80,14 @@ const server = createServer((request, response) => {
         ],
         settings: { lockApproval: lockEnabled },
         activeSessionId: 'session-test',
+        recentSessions: [
+          { sessionId: 'session-a', updatedAt: Date.now() - 1000 },
+          { sessionId: 'session-test', updatedAt: Date.now() - 2000 },
+          { sessionId: 'session-c', updatedAt: Date.now() - 3000 },
+          { sessionId: 'session-d', updatedAt: Date.now() - 4000 },
+          { sessionId: 'session-e', updatedAt: Date.now() - 5000 },
+        ],
+        switchRequest,
         sessionLabel: '测试对话 · session',
         companionOpen: true,
         feed: [
@@ -146,6 +156,17 @@ const server = createServer((request, response) => {
   if (url.pathname === '/test/prompts') {
     response.writeHead(200, { 'content-type': 'application/json' })
     response.end(JSON.stringify(prompts))
+    return
+  }
+  if (url.pathname === '/test/switch') {
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.end(JSON.stringify(switches))
+    return
+  }
+  if (url.pathname === '/test/switch-ack') {
+    switchRequest = null
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.end(JSON.stringify({ ok: true }))
     return
   }
   if (url.pathname === '/test/uploads') {
@@ -228,6 +249,13 @@ const server = createServer((request, response) => {
         }
         if (value && value.type === 'prompt') {
           prompts.push(value)
+        }
+        if (value && value.type === 'switch-session') {
+          switches.push(value)
+          switchRequest = { id: `switch-${switches.length}`, sessionId: value.sessionId, at: Date.now() }
+          response.writeHead(200, { 'content-type': 'application/json' })
+          response.end(JSON.stringify({ ok: true, id: switchRequest.id }))
+          return
         }
         if (value && value.type === 'set-approval-lock') {
           lockEnabled = Boolean(value.enabled)

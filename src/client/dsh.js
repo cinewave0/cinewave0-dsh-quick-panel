@@ -54,6 +54,22 @@ export function createDsh(ctx) {
       }
     },
 
+    /**
+     * Navigate to a Session the way the sidebar does. Returns whether the
+     * navigation was accepted; the Host companion ack reflects it either way.
+     */
+    switchSession(sessionId) {
+      if (typeof sessionId !== 'string' || !sessionId) return false
+      const workspace = get('uiWorkspace')
+      if (!workspace || typeof workspace.openSession !== 'function') return false
+      try {
+        workspace.openSession(sessionId)
+        return true
+      } catch (_error) {
+        return false
+      }
+    },
+
     loadOlder(sessionId) {
       const session = sessionOf(sessionId)
       if (!session || typeof session.loadOlder !== 'function') return

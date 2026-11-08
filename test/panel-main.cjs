@@ -95,6 +95,57 @@ app.whenReady().then(async () => {
   assert.notEqual(layout.todoCheck.borderColor, 'rgba(0, 0, 0, 0)')
   assert.notEqual(layout.todoCheck.background, 'rgba(0, 0, 0, 0)')
 
+  const slots = await win.webContents.executeJavaScript(`({
+    count: document.querySelectorAll('.session-slot').length,
+    labels: [...document.querySelectorAll('.session-slot')].map((node) => node.textContent),
+    active: [...document.querySelectorAll('.session-slot')].findIndex((node) =>
+      node.classList.contains('is-active')),
+    hidden: document.getElementById('session-switch').hidden,
+    headOrder: [...document.querySelectorAll('.feed-section .section-head > *')].map(
+      (node) => node.id || node.textContent.trim()),
+    geometry: (() => {
+      const head = document.querySelector('.feed-section .section-head');
+      const title = head.children[0].getBoundingClientRect();
+      const group = document.getElementById('session-switch').getBoundingClientRect();
+      const status = document.getElementById('feed-status').getBoundingClientRect();
+      return { titleRight: title.right, groupLeft: group.left, groupRight: group.right, statusLeft: status.left };
+    })(),
+  })`)
+  assert.equal(slots.count, 5)
+  assert.deepEqual(slots.labels, ['1', '2', '3', '4', '5'])
+  assert.equal(slots.active, 1)
+  assert.equal(slots.hidden, false)
+  assert.deepEqual(slots.headOrder, ['实时消息', 'session-switch', 'feed-status'])
+  assert.ok(slots.geometry.groupLeft > slots.geometry.titleRight, 'slots sit after the title')
+  assert.ok(slots.geometry.statusLeft > slots.geometry.groupRight, 'status sits after the slots')
+
+  await win.webContents.executeJavaScript(`document.querySelectorAll('.session-slot')[2].click()`)
+  await delay(500)
+  const switched = await fetchJson('/test/switch')
+  assert.equal(switched.length, 1)
+  assert.equal(switched[0].sessionId, 'session-c')
+  const pendingUi = await win.webContents.executeJavaScript(`({
+    pending: [...document.querySelectorAll('.session-slot.is-pending')].map((node) => node.textContent),
+    disabled: [...document.querySelectorAll('.session-slot')].every((node) => node.disabled),
+  })`)
+  assert.deepEqual(pendingUi.pending, ['3'])
+  assert.equal(pendingUi.disabled, true)
+  await fetchJson('/test/switch-ack')
+  await delay(1400)
+  const settledUi = await win.webContents.executeJavaScript(`({
+    pending: document.querySelectorAll('.session-slot.is-pending').length,
+    disabled: [...document.querySelectorAll('.session-slot')].every((node) => node.disabled),
+  })`)
+  assert.equal(settledUi.pending, 0)
+  assert.equal(settledUi.disabled, false)
+  await win.webContents.executeJavaScript(
+    `document.querySelector('.feed-section').scrollIntoView({ block: 'start' })`,
+  )
+  await delay(300)
+  const header = await win.webContents.capturePage()
+  fs.writeFileSync(path.join(output, 'feed-header.png'), header.toPNG())
+
+
   await win.webContents.executeJavaScript(`document.getElementById('approval-lock').click()`)
   await delay(900)
   const lockRequests = await fetchJson('/test/lock')

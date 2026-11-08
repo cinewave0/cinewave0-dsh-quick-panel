@@ -10,6 +10,8 @@ let snapshot = {
   todos: [],
   reminders: [],
   activeSessionId: null,
+  recentSessions: [],
+  switchRequest: null,
   feed: [],
   feedSource: 'client',
   feedHasOlder: false,
@@ -39,6 +41,7 @@ let approvalNotice = null
 let lockBusy = false
 const NOTIFY_KEY = 'dsh.quick-panel.notify.v1'
 const NOTIFY_LIMIT = 20
+const RECENT_SESSION_SLOTS = 5
 let notifications = loadNotifications()
 let notifyOpen = false
 let pendingAttachments = []
@@ -442,6 +445,63 @@ function updateFeedStatus() {
     : snapshot.activeSessionId
       ? '在线'
       : ''
+}
+
+/** Five numbered slots: click one to make DSH open that recent Session. */
+function renderSessionSwitch() {
+  const host = $('session-switch')
+  if (!host) return
+  const recent = Array.isArray(snapshot.recentSessions) ? snapshot.recentSessions : []
+  const slots = recent
+    .filter((item) => item && typeof item.sessionId === 'string' && item.sessionId)
+    .slice(0, RECENT_SESSION_SLOTS)
+  const active = typeof snapshot.activeSessionId === 'string' ? snapshot.activeSessionId : ''
+  const pending =
+    snapshot.switchRequest && typeof snapshot.switchRequest.sessionId === 'string'
+      ? snapshot.switchRequest.sessionId
+      : ''
+  const signature = `${slots.map((item) => item.sessionId).join(',')}|${active}|${pending}`
+  if (host.dataset.signature === signature) return
+  host.dataset.signature = signature
+  const buttons = slots.map((item, index) => {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'session-slot'
+    button.textContent = String(index + 1)
+    const isActive = item.sessionId === active
+    if (isActive) button.classList.add('is-active')
+    if (item.sessionId === pending) button.classList.add('is-pending')
+    button.disabled = isActive || Boolean(pending)
+    const label = isActive ? '当前会话' : `切换到最近第 ${index + 1} 个会话`
+    button.title = label
+    button.setAttribute('aria-label', label)
+    if (!isActive) button.addEventListener('click', () => void switchSession(item.sessionId))
+    return button
+  })
+  host.replaceChildren(...buttons)
+  host.hidden = buttons.length === 0
+}
+
+async function switchSession(sessionId) {
+  if (!sessionId || sessionId === snapshot.activeSessionId) return
+  if (snapshot.switchRequest && snapshot.switchRequest.sessionId === sessionId) return
+  try {
+    const result = await post({ type: 'switch-session', sessionId })
+    if (!result || result.ok !== true) {
+      pushNotification('switch-failed', '切换失败', '该会话已不在最近列表', 'switch-failed')
+      return
+    }
+    if (result.id) {
+      snapshot = {
+        ...snapshot,
+        switchRequest: { id: result.id, sessionId, at: Date.now() },
+      }
+      renderSessionSwitch()
+    }
+    await refresh(false)
+  } catch (_error) {
+    pushNotification('switch-failed', '切换失败', 'DSH 未响应切换请求', 'switch-failed')
+  }
 }
 
 function updateJump() {
@@ -1518,6 +1578,9 @@ async function refresh(force) {
       usage: next.usage && typeof next.usage === 'object' ? next.usage : null,
       sessionLabel: typeof next.sessionLabel === 'string' ? next.sessionLabel : '',
       activeSessionId: typeof next.activeSessionId === 'string' ? next.activeSessionId : null,
+      recentSessions: Array.isArray(next.recentSessions) ? next.recentSessions : [],
+      switchRequest:
+        next.switchRequest && typeof next.switchRequest === 'object' ? next.switchRequest : null,
     }
     renderApprovalLock()
     if (snapshot.activeSessionId !== previousSessionId) clearAttachments()
@@ -1572,6 +1635,7 @@ async function refresh(force) {
     updateComposer()
     renderIsland()
     renderSessionLabel()
+    renderSessionSwitch()
     renderUsage()
     if (!approvalAnswering) setSync(Date.now() < doneUntil && doneText ? doneText : '已同步')
   } catch (_error) {

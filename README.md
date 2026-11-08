@@ -1,6 +1,6 @@
 # 快捷面板 / Quick Panel
 
-> 当前版本：1.0.3
+> 当前版本：1.0.4-beta.1（预发布）
 
 [![CI](https://github.com/cinewave0/cinewave0-dsh-quick-panel/actions/workflows/ci.yml/badge.svg)](https://github.com/cinewave0/cinewave0-dsh-quick-panel/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cinewave0/cinewave0-dsh-quick-panel)](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases)
@@ -30,14 +30,14 @@ DSH Desktop 的快捷面板插件：在 DSH 窗口内提供一个浮岛与面板
 https://cinewave0.github.io/cinewave0-dsh-quick-panel/market/index.json
 ```
 
-然后搜索 **Quick Panel** 安装 `1.0.3`。索引固定到 v1.0.3 的 Git commit。
+然后搜索 **Quick Panel** 安装 `1.0.4-beta.1`。索引固定到 v1.0.4-beta.1 的 Git commit。
 
 ### 方式二：Release 包
 
-从 [Releases](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases) 下载 `dsh-quick-panel-1.0.3.tgz`，用 `SHA256SUMS` 校验，然后：
+从 [Releases](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases) 下载 `dsh-quick-panel-1.0.4-beta.1.tgz`，用 `SHA256SUMS` 校验，然后：
 
 ```powershell
-dsh plugin --profile desktop add <下载目录>\dsh-quick-panel-1.0.3.tgz
+dsh plugin --profile desktop add <下载目录>\dsh-quick-panel-1.0.4-beta.1.tgz
 ```
 
 ### 方式三：git commit
@@ -78,6 +78,7 @@ dsh plugin --profile desktop add "git+https://github.com/cinewave0/cinewave0-dsh
 - 权限请求：DSH 页面可见时由 DSH 内建卡处理；DSH 页面隐藏/最小化时由独立窗接管，回到 DSH 可见后自动交还；
 - DSH 的 1/2/3 选项问题会镜像到独立窗，选择/填写后可直接提交；
 - DSH 不在对话页时，实时消息由 Host 继续镜像最近事件，并支持上滚加载更早；
+- 「实时消息」与「在线」之间的 1–5 数字是最近 5 个会话（不显示标题），点数字即在 DSH 中切换；当前会话高亮，请求发出后目标数字脉冲，等 DSH 页面轮询处理并回报；已归档会话不出现；
 - 时钟右侧显示余额（与时钟同尺寸）和本次 token 总量、输出速度、最近 30 天 token 总量（日期字号）；
 - 托盘退出才会真正结束小应用。
 
@@ -113,6 +114,7 @@ dsh plugin --profile desktop add "git+https://github.com/cinewave0/cinewave0-dsh
 - 仅 Windows；独立小应用依赖 DSH 运行与 `$DSH_HOME/electron`；
 - 独立窗实时消息：Host 能在 DSH 离开对话页后继续镜像新的已结算事件，并在上滚时从 Host 会话事件加载更早；流式 partial 仍依赖 DSH 对话页；
 - 独立窗问题卡：当前会话的 pending 问题会镜像；多题用上一题/下一题，提交后等待 DSH 确认；
+- 独立窗会话切换：数字按钮只负责发起请求，真正切换发生在 DSH 页面内的客户端插件（轮询间隔约 2.5 秒）；DSH 页面关闭或插件未加载时请求会在 30 秒后过期，界面不报错也不切换；
 - 图片缩略图：DSH 面板覆盖已加载的历史消息；独立窗覆盖 Host 镜像的当前窗口；原图由 Host 按附件引用按需读取，超过 16 MiB 的附件不预览；
 - 通知中心：面板时钟下方常驻通知条，记录**审批请求、轮次结束、提醒到点**；未读显示角标，点开查看最近 20 条，审批条目可跳回审批卡，支持一键清空。记录存在面板 localStorage（DSH 重启换端口会清空）。
 - 权限批准卡：默认在 DSH 页面可见时显示 DSH 内建卡；DSH 页面隐藏、独立窗心跳在线且当前对话匹配时由外部面板接管。外部面板「实时消息」下方的**审批锁定在外部面板**勾选后，即使 DSH 可见也由外部面板接管；取消勾选恢复 DSH 内建审批。审批被接管时面板会响提示音并弹桌面通知（标题含工具名，回答后通知关闭）。关闭独立窗或心跳丢失时始终交还 DSH；不再有 120 秒超时兜底；
