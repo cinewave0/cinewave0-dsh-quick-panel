@@ -2,7 +2,12 @@
 
 > 当前版本：1.0.3
 
-DSH Desktop 的快捷面板插件：在 DSH 窗口内提供一个浮岛与面板，并附带一个可常驻桌面的独立小应用（Electron 伴生窗）。
+[![CI](https://github.com/cinewave0/cinewave0-dsh-quick-panel/actions/workflows/ci.yml/badge.svg)](https://github.com/cinewave0/cinewave0-dsh-quick-panel/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/cinewave0/cinewave0-dsh-quick-panel)](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases)
+
+![Quick Panel](docs/panel.png)
+
+DSH Desktop 的快捷面板插件：在 DSH 窗口内提供一个浮岛与面板，并附带一个可常驻桌面的独立小应用（Electron 伴生窗）。仓库已公开，通过 GitHub Releases 与 Discover 索引分发（npm 发布暂缓）。
 
 - **DSH 内**：侧边栏入口 → 顶部浮岛 → 下拖面板；待办、提醒、实时消息、快速输入。
 - **独立小应用**：默认顶部浮岛（360×48，置顶、不占任务栏），点开为 440 宽面板；托盘常驻；关闭面板只收起为浮岛。
