@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import test, { after } from 'node:test'
 import { apply } from '../index.js'
 
 const ROOT = join(import.meta.dirname, '.state')
+/** Same per-platform name the Host resolves under $DSH_HOME/electron. */
+const ELECTRON_RELATIVE = process.platform === 'win32' ? 'electron.exe' : 'electron'
 const previousNoDownload = process.env.DSH_QUICK_PANEL_NO_RUNTIME_DOWNLOAD
 process.env.DSH_QUICK_PANEL_NO_RUNTIME_DOWNLOAD = '1'
 after(() => {
@@ -715,7 +717,7 @@ test('open-window rejects an Electron path that is not a file', async () => {
   delete process.env.DSH_QUICK_PANEL_ELECTRON
   const harness = makeHarness('open-unusable')
   try {
-    mkdirSync(join(harness.home, 'electron', 'electron.exe'), { recursive: true })
+    mkdirSync(join(harness.home, 'electron', ELECTRON_RELATIVE), { recursive: true })
     const result = await harness.post({ type: 'open-window' })
     assert.equal(result.json.ok, false)
     assert.equal(result.json.error, 'electron-unusable')
@@ -731,6 +733,7 @@ test('open-window rejects a non-loopback origin before spawning', async () => {
   try {
     const fake = join(harness.home, 'fake-electron.exe')
     writeFileSync(fake, 'stub')
+    chmodSync(fake, 0o755)
     process.env.DSH_QUICK_PANEL_ELECTRON = fake
     const result = await harness.post({ type: 'open-window' })
     assert.equal(result.json.ok, false)
