@@ -1,6 +1,6 @@
 # 快捷面板 / Quick Panel
 
-> 当前版本：1.0.4-beta.1（预发布）
+> 当前版本：1.0.4-beta.2（预发布）
 
 [![CI](https://github.com/cinewave0/cinewave0-dsh-quick-panel/actions/workflows/ci.yml/badge.svg)](https://github.com/cinewave0/cinewave0-dsh-quick-panel/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cinewave0/cinewave0-dsh-quick-panel)](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases)
@@ -37,16 +37,16 @@ DSH Desktop 的快捷面板插件：在 DSH 窗口内提供一个浮岛与面板
 https://cinewave0.github.io/cinewave0-dsh-quick-panel/market/index.json
 ```
 
-然后搜索 **Quick Panel** 安装 `1.0.4-beta.1`。索引固定到 v1.0.4-beta.1 的 Git commit。
+然后搜索 **Quick Panel** 安装 `1.0.4-beta.2`。索引固定到 v1.0.4-beta.2 的 Git commit。
 
 > 索引当前指向预发布版。想留在稳定版，用下面的 Release 包安装 `v1.0.3`。
 
 ### 方式二：Release 包
 
-从 [Releases](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases) 下载 `dsh-quick-panel-1.0.4-beta.1.tgz`，用 `SHA256SUMS` 校验，然后：
+从 [Releases](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases) 下载 `dsh-quick-panel-1.0.4-beta.2.tgz`，用 `SHA256SUMS` 校验，然后：
 
 ```powershell
-dsh plugin --profile desktop add <下载目录>\dsh-quick-panel-1.0.4-beta.1.tgz
+dsh plugin --profile desktop add <下载目录>\dsh-quick-panel-1.0.4-beta.2.tgz
 ```
 
 ### 方式三：git commit
