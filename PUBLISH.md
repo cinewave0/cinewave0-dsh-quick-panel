@@ -171,10 +171,10 @@ npm run check:market
 推送 `v*` tag 会触发 `.github/workflows/release.yml`：
 
 1. 校验 tag 与 `package.json` 版本一致；
-2. 校验 `market/index.json` 里存在该版本且带 `engines.dsh`；
+2. 校验 `market/index.json` 里存在该版本且带 `engines.dsh`（`scripts/check-market-index.mjs` 还会校验索引 commit 的 `package.json` 版本）；
 3. 构建 + 校验产物 + lint + 客户端/Host 测试；
 4. `npm pack` 并生成 `SHA256SUMS`；
-5. 创建 GitHub Release，附上 tgz 和校验和；
+5. 创建 GitHub Release：说明页先拼 `.github/release-notes-header.md`（安装方式、平台要求、必须完全退出 DSH 再打开、首次自动下载 Electron），再接自动生成的变更摘要；
 6. 如果仓库配置了 `NPM_TOKEN` secret，再执行 `npm publish`（没有则跳过）。
 
 ```powershell
@@ -199,6 +199,6 @@ curl.exe -sS https://cinewave0.github.io/cinewave0-dsh-quick-panel/market/index.
 
 当前已发布：`v1.0.4-beta.2`（commit `003bc27`），索引 source 已指向该 commit；上一稳定版 `v1.0.3`（commit `6ec9490`）。beta tag 由 Release workflow 标记为 Pre-release，不会顶掉 Latest。
 
-> **待办（2026-11-08）**：`v1.0.4-beta.1` 的 tag 快照是 `1d59b0c`，其 README/`docs/panel.png` 早于之后的文档提交（`c2d6967`、`dbe8150`）。正式版发布时，把 README、`docs/panel.png`、`SECURITY.md`、测试说明与 Release 说明一并刷新，避免 tag 快照与 `main` 不一致。
+> **已解决（v1.0.4，2026-11-09）**：正式版的 tag 快照已包含最新 README、`docs/panel.png`、`SECURITY.md` 与测试说明；Release 说明由 `.github/release-notes-header.md` 统一补充安装与重启要求。以后发版按第 5 节的顺序提交（源码 → 索引），不要先打 tag 再补文档。
 
 > npm 发布恢复后，可把 source 切回 `{"type":"npm"}` 并发布对应版本；两种路线可以并存，但索引里一个版本只有一个 source。

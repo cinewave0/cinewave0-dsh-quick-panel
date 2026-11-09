@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-Only the latest published release (currently `v1.0.4-beta.1`) receives fixes. The
-previous stable release is `v1.0.3`.
+Only the latest published release (currently `v1.0.4`) receives fixes. The
+previous stable release was `v1.0.3`.
 
 ## Reporting a vulnerability
 

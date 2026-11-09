@@ -71,10 +71,14 @@ jobs:
         run: |
           prerelease=""
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease="--prerelease"; fi
+          gh api -X POST "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+            -f tag_name="$GITHUB_REF_NAME" --jq .body > "$RUNNER_TEMP/changelog.md" \
+            || echo "" > "$RUNNER_TEMP/changelog.md"
+          cat .github/release-notes-header.md "$RUNNER_TEMP/changelog.md" > "$RUNNER_TEMP/release-notes.md"
           gh release create "$GITHUB_REF_NAME" \
             dsh-quick-panel-*.tgz SHA256SUMS \
             --title "$GITHUB_REF_NAME" \
-            --generate-notes $prerelease
+            --notes-file "$RUNNER_TEMP/release-notes.md" $prerelease
 
       - name: Publish to npm
         if: env.NPM_TOKEN != '' && !contains(github.ref_name, '-')

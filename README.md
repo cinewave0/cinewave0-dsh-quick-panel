@@ -1,6 +1,6 @@
 # 快捷面板 / Quick Panel
 
-> 当前版本：1.0.4-beta.2（预发布）
+> 当前版本：1.0.4（正式版）
 
 [![CI](https://github.com/cinewave0/cinewave0-dsh-quick-panel/actions/workflows/ci.yml/badge.svg)](https://github.com/cinewave0/cinewave0-dsh-quick-panel/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cinewave0/cinewave0-dsh-quick-panel)](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases)
@@ -37,16 +37,16 @@ DSH Desktop 的快捷面板插件：在 DSH 窗口内提供一个浮岛与面板
 https://cinewave0.github.io/cinewave0-dsh-quick-panel/market/index.json
 ```
 
-然后搜索 **Quick Panel** 安装 `1.0.4-beta.2`。索引固定到 v1.0.4-beta.2 的 Git commit。
+然后搜索 **Quick Panel** 安装 `1.0.4`。索引固定到 v1.0.4 的 Git commit。
 
-> 索引当前指向预发布版。想留在稳定版，用下面的 Release 包安装 `v1.0.3`。
+> 这是正式版；上一稳定版 `v1.0.3` 仍可从 Releases 安装。从任何 beta 升级也建议先完全退出 DSH 再装。
 
 ### 方式二：Release 包
 
-从 [Releases](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases) 下载 `dsh-quick-panel-1.0.4-beta.2.tgz`，用 `SHA256SUMS` 校验，然后：
+从 [Releases](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases) 下载 `dsh-quick-panel-1.0.4.tgz`，用 `SHA256SUMS` 校验，然后：
 
 ```powershell
-dsh plugin --profile desktop add <下载目录>\dsh-quick-panel-1.0.4-beta.2.tgz
+dsh plugin --profile desktop add <下载目录>\dsh-quick-panel-1.0.4.tgz
 ```
 
 ### 方式三：git commit
@@ -133,6 +133,17 @@ dsh plugin --profile desktop add "git+https://github.com/cinewave0/cinewave0-dsh
 - 时间栏的“30 日”是本机 DSH 会话投影的近似总量（含缓存读取），不是平台账单；余额需要已登录 DeepSeek 账号，API Key 模式显示 `—`，余额缓存约 5 分钟；
 - 多显示器/跨 DPI 场景未完整验证；
 - 独立窗提醒与 DSH 面板的“单一负责人”协调仍在完善。
+
+## 更新日志
+
+### 1.0.4（2026-11-09）
+
+- 首次打开独立面板自动下载、校验并安装 Electron 43.3.0（win32 x64 / arm64），不再依赖 dsh-pet 或手工解压；镜像/离线环境变量见「环境要求」；
+- 独立窗启动健壮性：等页面首次 ping 才算开窗成功、已开窗时唤起、非 loopback 地址拒绝、Electron stderr 写入 `helper.log` 并轮转；
+- 安装或升级后未重启时，面板顶部提示「插件已安装，需要重启 DSH」（完全退出，而不是刷新）；
+- 下载进度与失败原因按错误码显示，`/quick-panel/runtime` 暴露安装状态；
+- 「实时消息」标题栏的 1–5 数字切换最近会话（beta.1 起）；
+- 锁文件改用公共 npm registry，CI/Release 增加市场索引与版本一致性的校验。
 
 ## 开发目录
 
