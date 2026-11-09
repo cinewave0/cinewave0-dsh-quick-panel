@@ -52,7 +52,7 @@ dsh plugin --profile desktop add <下载目录>\dsh-quick-panel-1.0.4-beta.2.tgz
 ### 方式三：git commit
 
 ```powershell
-dsh plugin --profile desktop add "git+https://github.com/cinewave0/cinewave0-dsh-quick-panel.git#29b8097085ddba5c4be6c06321f64aec1fc4cd6e"
+dsh plugin --profile desktop add "git+https://github.com/cinewave0/cinewave0-dsh-quick-panel.git#003bc27f206b94024c519739f13b804ef84d2f27"
 ```
 
 安装后：

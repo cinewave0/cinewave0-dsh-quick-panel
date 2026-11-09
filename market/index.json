@@ -28,11 +28,11 @@
       "versions": [
         {
           "version": "1.0.4-beta.2",
-          "publishTimestamp": 1794238395,
+          "publishTimestamp": 1794238668,
           "source": {
             "type": "git",
             "url": "https://github.com/cinewave0/cinewave0-dsh-quick-panel",
-            "commit": "29b8097085ddba5c4be6c06321f64aec1fc4cd6e"
+            "commit": "003bc27f206b94024c519739f13b804ef84d2f27"
           },
           "engines": {
             "dsh": ">=0.2.2-rc.1 <0.3.0"
