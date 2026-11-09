@@ -91,7 +91,25 @@
       jumpLatest: '最新 ↓',
       openWindow: '打开独立面板',
       windowOpened: '独立面板已打开',
-      windowFailed: '打不开独立面板（Host 未连接）',
+      windowFailed: '打不开独立面板',
+      windowFailedHost: 'Host 未连接：请完全退出 DSH（托盘菜单退出或结束进程）后重新打开；仅刷新页面不够。',
+      restartTitle: '插件已安装，需要重启 DSH',
+      restartBody:
+        'DSH 页面还在运行旧版本，所以显示“Host 未连接”。请完全退出 DSH，而不是只关闭窗口或刷新页面。',
+      restartShortcut: '托盘菜单 → 退出（或任务管理器结束 DSH）',
+      restartAfter:
+        '确认 DSH 进程结束后重新打开，再点“打开独立面板”。Electron 运行时已经装好，不会重新下载。',
+      restartLog: '重启后仍提示 Host 未连接，请查看 %USERPROFILE%\\.dsh\\quick-panel\\helper.log。',
+      windowFailedElectron:
+        '独立面板需要 Electron：请安装到 %USERPROFILE%\\.dsh\\electron 或设置 DSH_QUICK_PANEL_ELECTRON',
+      windowFailedOrigin: '当前 DSH 地址不受支持（仅支持本机 127.0.0.1 / localhost）',
+      windowFailedSpawn: 'Electron 启动失败，请查看 %USERPROFILE%\\.dsh\\quick-panel\\helper.log',
+      windowFailedTimeout:
+        'Electron 已启动但面板未就绪，请查看 %USERPROFILE%\\.dsh\\quick-panel\\helper.log',
+      runtimeInstalling: '首次使用，正在下载 Electron 运行时（约 140 MB）',
+      runtimeInstallFailed: 'Electron 运行时安装失败，请再点一次重试；详情见 helper.log',
+      runtimeInstallTimeout: '等待 Electron 运行时超时，请查看 helper.log',
+      runtimeUnavailable: '当前平台不支持自动安装 Electron',
       disabledInput: 'M4 将在此快速输入…',
       version: 'v0.1.0 · M6',
       esc: 'Esc 收起',
@@ -191,7 +209,28 @@
       jumpLatest: 'Latest ↓',
       openWindow: 'Open standalone panel',
       windowOpened: 'Standalone panel opened',
-      windowFailed: 'Could not open the standalone panel (Host offline)',
+      windowFailed: 'Could not open the standalone panel',
+      windowFailedHost:
+        'Host offline: quit DSH completely (tray menu → Quit or end the process), then reopen; refreshing the page is not enough.',
+      restartTitle: 'Plugin installed — restart DSH',
+      restartBody:
+        'This DSH page is still running the old version, so it shows “Host offline”. Quit DSH completely; closing the window or refreshing the page is not enough.',
+      restartShortcut: 'Tray menu → Quit (or end DSH in Task Manager)',
+      restartAfter:
+        'Wait until the DSH process is gone, reopen DSH, then click “Open standalone panel” again. The Electron runtime is already installed and will not download again.',
+      restartLog:
+        'If “Host offline” persists after the restart, check %USERPROFILE%\\.dsh\\quick-panel\\helper.log.',
+      windowFailedElectron:
+        'The standalone panel needs Electron: install it under %USERPROFILE%\\.dsh\\electron or set DSH_QUICK_PANEL_ELECTRON',
+      windowFailedOrigin: 'This DSH address is not supported (loopback 127.0.0.1 / localhost only)',
+      windowFailedSpawn:
+        'Electron failed to start; see %USERPROFILE%\\.dsh\\quick-panel\\helper.log',
+      windowFailedTimeout:
+        'Electron started but the panel did not become ready; see %USERPROFILE%\\.dsh\\quick-panel\\helper.log',
+      runtimeInstalling: 'First run: downloading the Electron runtime (about 140 MB)',
+      runtimeInstallFailed: 'Electron runtime install failed; click again to retry or see helper.log',
+      runtimeInstallTimeout: 'Timed out waiting for the Electron runtime; see helper.log',
+      runtimeUnavailable: 'Automatic Electron install is not supported on this platform',
       disabledInput: 'Quick input arrives in M4…',
       version: 'v0.1.0 · M6',
       esc: 'Esc to collapse',

@@ -7,6 +7,23 @@ import { Capture, TodoRow, ReminderSection } from './sections.js'
 import { FeedSection } from './feed.js'
 import { QuickInput } from './input.js'
 
+/** Keep the Host's failure code visible instead of calling every failure "Host offline". */
+function windowFailureText(t, result) {
+  const code = result && result.error
+  if (code === 'electron-missing' || code === 'electron-unusable') return t('windowFailedElectron')
+  if (code === 'electron-installing') return t('runtimeInstalling')
+  if (code === 'electron-install-failed') return t('runtimeInstallFailed')
+  if (code === 'electron-install-timeout') return t('runtimeInstallTimeout')
+  if (code === 'runtime-unavailable') return t('runtimeUnavailable')
+  if (code === 'unsupported-origin') return t('windowFailedOrigin')
+  if (code === 'spawn-failed') return t('windowFailedSpawn')
+  if (code === 'companion-timeout') return t('windowFailedTimeout')
+  if (code === 'host-unavailable' || code === 'origin-unavailable' || code === 'request-failed') {
+    return t('windowFailedHost')
+  }
+  return t('windowFailed')
+}
+
     function Panel({ t, now, state, anchor, width, maxHeight, onDragStart, due, onSnooze, onComplete, schedule, openSchedule, loadOlder, sendPrompt, stopTurn }) {
       const clock = clockOf(now)
       const connected = Boolean(state.sessionId)
@@ -29,6 +46,40 @@ import { QuickInput } from './input.js'
         setFlash(text)
         window.clearTimeout(flashTimer.current)
         flashTimer.current = window.setTimeout(() => setFlash(null), 2600)
+      }
+
+      /**
+       * First open can provision Electron. The Host starts a pinned download
+       * and returns `electron-installing`; keep polling until the runtime is
+       * ready, then retry the real open once.
+       */
+      const openStandalone = async () => {
+        let result = await hostSync.openWindow()
+        if (result && result.error === 'electron-installing') {
+          let runtime = result.runtime || (await hostSync.runtimeStatus())
+          for (let attempt = 0; attempt < 1200; attempt += 1) {
+            const percent = runtime && Number.isFinite(runtime.percent) ? runtime.percent : 0
+            showFlash(percent > 0 ? `${t('runtimeInstalling')} ${percent}%` : t('runtimeInstalling'))
+            await new Promise((resolve) => window.setTimeout(resolve, 1500))
+            runtime = await hostSync.runtimeStatus()
+            if (!runtime) {
+              result = { ok: false, error: 'host-unavailable' }
+              break
+            }
+            if (runtime.status === 'ready') {
+              result = await hostSync.openWindow()
+              break
+            }
+            if (runtime.status === 'failed') {
+              result = { ok: false, error: 'electron-install-failed', detail: runtime.error }
+              break
+            }
+          }
+          if (result && result.error === 'electron-installing') {
+            result = { ok: false, error: 'electron-install-timeout' }
+          }
+        }
+        showFlash(result && result.ok ? t('windowOpened') : windowFailureText(t, result))
       }
 
       const handoff = (todo) => {
@@ -214,11 +265,7 @@ import { QuickInput } from './input.js'
                   {
                     type: 'button',
                     className: 'qp-iconbtn',
-                    onClick: () => {
-                      hostSync.openWindow().then((result) => {
-                        showFlash(result && result.ok ? t('windowOpened') : t('windowFailed'))
-                      })
-                    },
+                    onClick: openStandalone,
                     title: t('openWindow'),
                     'aria-label': t('openWindow'),
                   },
@@ -255,6 +302,17 @@ import { QuickInput } from './input.js'
               ),
             ),
           ),
+          !state.hostReady
+            ? h(
+                'div',
+                { className: 'qp-restart-banner', role: 'alert' },
+                h('div', { className: 'qp-restart-title' }, t('restartTitle')),
+                h('div', { className: 'qp-restart-body' }, t('restartBody')),
+                h('div', { className: 'qp-restart-shortcut' }, t('restartShortcut')),
+                h('div', { className: 'qp-restart-after' }, t('restartAfter')),
+                h('div', { className: 'qp-restart-log' }, t('restartLog')),
+              )
+            : null,
           due
             ? h(
                 'div',
@@ -341,11 +399,7 @@ import { QuickInput } from './input.js'
               {
                 type: 'button',
                 className: 'qp-window-row',
-                onClick: () => {
-                  hostSync.openWindow().then((result) => {
-                    showFlash(result && result.ok ? t('windowOpened') : t('windowFailed'))
-                  })
-                },
+                onClick: openStandalone,
               },
               h(IconWindow, { size: 13 }),
               h('span', null, t('openWindow')),

@@ -39,16 +39,7 @@ jobs:
           "
 
       - name: Check market index matches the release
-        run: |
-          node -e "
-            const pkg = require('./package.json');
-            const index = require('./market/index.json');
-            const entry = index.plugins.find((plugin) => plugin.name === pkg.name);
-            if (!entry) throw new Error('market index is missing ' + pkg.name);
-            const version = entry.versions.find((item) => item.version === pkg.version);
-            if (!version) throw new Error('market index is missing version ' + pkg.version);
-            if (!version.engines?.dsh) throw new Error('market index version has no engines.dsh');
-          "
+        run: node scripts/check-market-index.mjs
 
       - name: Build client bundle
         run: node scripts/build-client.mjs
@@ -65,6 +56,8 @@ jobs:
           node test/source-imports.test.mjs
           node test/dsh-adapter.test.mjs
           node test/host.test.mjs
+          node test/runtime-install.test.mjs
+          node test/restart-prompt.test.mjs
 
       - name: Pack
         run: |

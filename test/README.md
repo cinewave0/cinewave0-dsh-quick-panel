@@ -15,10 +15,28 @@ node test/host.test.mjs
 - 审批接管：allow / reject / stale / 其他对话委派 / 已有 pending 委派；
 - 用量：30 日聚合、当前会话 fallback、余额缓存；
 - 最近会话：5 个槽位、按活动时间排序、归档过滤、切换请求与 ack、非法/未知 id 拒绝；
+- Electron 解析：缺失（`electron-missing`）、不是文件（`electron-unusable`）、非 loopback origin 拒绝、`/runtime` 状态与 token 校验；
 - 问题卡：问题镜像、答案请求、ack 清理；
 - Host feed：种子回填、live 事件追加、客户端 feed 优先。
 
 这个测试只跑 Node，不需要 DSH/Electron。
+
+## 1.1 首次安装 Electron（运行时供应）
+
+```powershell
+node test/runtime-install.test.mjs   # 仅 Windows 执行；CI 的 ubuntu 会跳过
+```
+
+起一个本地 HTTP 服务提供迷你 zip，走真实的下载 → SHA-256 校验 → `tar` 解压 → 合并到 `$DSH_HOME/electron`；另一个用例断言校验值不匹配时不会安装任何东西。
+
+## 1.2 重启提示与 helper 冒烟
+
+```powershell
+node test/restart-prompt.test.mjs    # 中英文字典里的“完全退出 DSH”文案
+node test/helper.test.mjs            # 真实 Electron 启动 helper，等待页面 ping（需 electron.exe）
+```
+
+`helper.test.mjs` 使用独立的 `--user-data-dir`，避免与已打开的独立窗抢单实例锁。
 
 ## 2. 独立窗面板测试
 

@@ -174,6 +174,10 @@
 .qp-side-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary,#98a2b3);font:inherit;font-size:12px;cursor:pointer;position:relative;flex:none}
 .qp-side-btn:hover{background:var(--dsw-alias-bg-layer-2,#22262e);color:var(--dsw-alias-label-primary,#e9ecf1)}
 .qp-side-dot{position:absolute;top:4px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-success-primary,#3ddc97);box-shadow:0 0 0 2px var(--dsw-alias-bg-base,#14161a)}
+.qp-restart-banner{flex:none;margin:0 14px 8px;padding:9px 10px;border-radius:10px;border:1px solid rgb(246 200 90 / .35);background:rgb(246 200 90 / .10);color:var(--dsw-alias-label-primary,#e9ecf1);font-size:10.5px;line-height:1.45;display:flex;flex-direction:column;gap:3px;word-break:break-word}
+.qp-restart-title{font-size:11.5px;font-weight:600;color:#f2d58a}
+.qp-restart-shortcut{font-size:12px;font-weight:700;color:#f2d58a}
+.qp-restart-log{font-size:9.5px;color:var(--dsw-alias-label-secondary,#98a2b3)}
 @media (hover:none){.qp-todo-actions{opacity:1}}
 @media (max-width:520px){.qp-panel{max-width:calc(100vw - 16px)}}
 @media (prefers-reduced-motion:reduce){.qp-dot.is-live,.qp-caret,.qp-feed-dot,.qp-wheel-current,.qp-due-card{animation:none}.qp-panel,.qp-island,.qp-flash{animation:none;transition:none}}

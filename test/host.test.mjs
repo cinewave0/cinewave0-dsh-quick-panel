@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
-import test from 'node:test'
+import test, { after } from 'node:test'
 import { apply } from '../index.js'
 
 const ROOT = join(import.meta.dirname, '.state')
+const previousNoDownload = process.env.DSH_QUICK_PANEL_NO_RUNTIME_DOWNLOAD
+process.env.DSH_QUICK_PANEL_NO_RUNTIME_DOWNLOAD = '1'
+after(() => {
+  if (previousNoDownload === undefined) delete process.env.DSH_QUICK_PANEL_NO_RUNTIME_DOWNLOAD
+  else process.env.DSH_QUICK_PANEL_NO_RUNTIME_DOWNLOAD = previousNoDownload
+})
 
 function makeHarness(name, options = {}) {
   const home = join(ROOT, name)
@@ -62,7 +68,7 @@ function makeHarness(name, options = {}) {
   const listeners = new Map()
   const injected = []
   const webServer = {
-    getOrigin: () => 'http://127.0.0.1:9999',
+    getOrigin: () => options.origin || 'http://127.0.0.1:9999',
     register: (route) => {
       routes.set(route.path, route)
       return () => routes.delete(route.path)
@@ -145,6 +151,7 @@ function makeHarness(name, options = {}) {
   return {
     token,
     query,
+    home,
     call,
     post,
     listeners,
@@ -676,6 +683,74 @@ test('host feed seeds, appends live events and yields to a fresh client feed', a
     state = await harness.state()
     assert.equal(state.feed.length, 1)
     assert.equal(state.feed[0].text, 'client')
+  } finally {
+    harness.cleanup()
+  }
+})
+
+function restoreEnv(name, value) {
+  if (value === undefined) delete process.env[name]
+  else process.env[name] = value
+}
+
+test('open-window reports electron-missing and logs the searched paths', async () => {
+  const previous = process.env.DSH_QUICK_PANEL_ELECTRON
+  delete process.env.DSH_QUICK_PANEL_ELECTRON
+  const harness = makeHarness('open-missing')
+  try {
+    const result = await harness.post({ type: 'open-window' })
+    assert.equal(result.json.ok, false)
+    assert.equal(result.json.error, 'electron-missing')
+    assert.ok(Array.isArray(result.json.searched))
+    const log = readFileSync(join(harness.home, 'quick-panel', 'helper.log'), 'utf8')
+    assert.match(log, /electron-missing/u)
+  } finally {
+    harness.cleanup()
+    restoreEnv('DSH_QUICK_PANEL_ELECTRON', previous)
+  }
+})
+
+test('open-window rejects an Electron path that is not a file', async () => {
+  const previous = process.env.DSH_QUICK_PANEL_ELECTRON
+  delete process.env.DSH_QUICK_PANEL_ELECTRON
+  const harness = makeHarness('open-unusable')
+  try {
+    mkdirSync(join(harness.home, 'electron', 'electron.exe'), { recursive: true })
+    const result = await harness.post({ type: 'open-window' })
+    assert.equal(result.json.ok, false)
+    assert.equal(result.json.error, 'electron-unusable')
+  } finally {
+    harness.cleanup()
+    restoreEnv('DSH_QUICK_PANEL_ELECTRON', previous)
+  }
+})
+
+test('open-window rejects a non-loopback origin before spawning', async () => {
+  const previous = process.env.DSH_QUICK_PANEL_ELECTRON
+  const harness = makeHarness('open-origin', { origin: 'https://example.com:9999' })
+  try {
+    const fake = join(harness.home, 'fake-electron.exe')
+    writeFileSync(fake, 'stub')
+    process.env.DSH_QUICK_PANEL_ELECTRON = fake
+    const result = await harness.post({ type: 'open-window' })
+    assert.equal(result.json.ok, false)
+    assert.equal(result.json.error, 'unsupported-origin')
+  } finally {
+    harness.cleanup()
+    restoreEnv('DSH_QUICK_PANEL_ELECTRON', previous)
+  }
+})
+
+test('runtime endpoint exposes the install state and is token protected', async () => {
+  const harness = makeHarness('runtime-state')
+  try {
+    const unauthorized = await harness.call('/quick-panel/runtime')
+    assert.equal(unauthorized.status, 401)
+    const result = await harness.call(`/quick-panel/runtime?${harness.query}`)
+    assert.equal(result.status, 200)
+    assert.equal(result.json.ok, true)
+    assert.equal(result.json.status, 'idle')
+    assert.equal(typeof result.json.supported, 'boolean')
   } finally {
     harness.cleanup()
   }

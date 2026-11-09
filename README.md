@@ -16,11 +16,18 @@ DSH Desktop 的快捷面板插件：在 DSH 窗口内提供一个浮岛与面板
 
 - Windows（独立小应用依赖 Electron 与 Windows 窗口 API）。
 - DSH Desktop（Host 半区需要 `webServer` 与 `sessionController`）。
-- 独立小应用复用 `%USERPROFILE%\.dsh\electron\electron.exe`（通常由 dsh-pet 下载）。缺失时打开独立窗会提示失败。
+- Electron 43.x：独立窗由 Host 拉起一个外部 Electron 进程。**首次点“打开独立面板”时，Host 会自动下载、校验并安装 Electron 43.3.0（约 140 MB，win32 x64 / arm64）到 `%USERPROFILE%\.dsh\electron`，然后直接开窗。** 不需要 dsh-pet，也不需要手工解压。
+
+  - 下载源：默认先走 npmmirror CDN，失败后回退 GitHub Releases；zip 的 SHA-256 固定在校验表里，镜像无法替换二进制。
+  - 自定义镜像：`DSH_QUICK_PANEL_ELECTRON_MIRROR=https://your.mirror/electron`（该目录下需有 `43.3.0/electron-v43.3.0-win32-x64.zip` 或 `...-arm64.zip`）。
+  - 已有 Electron：默认路径 `%USERPROFILE%\.dsh\electron\electron.exe`；也可以设置 `DSH_QUICK_PANEL_ELECTRON` 指向可执行文件（重启 DSH 生效）。
+  - 离线/企业环境：设置 `DSH_QUICK_PANEL_NO_RUNTIME_DOWNLOAD=1` 关闭自动下载，再手动解压到 `%USERPROFILE%\.dsh\electron`。
 
 ## 安装
 
 本插件目前走 **GitHub 分发**（npm 发布暂缓）。
+
+> **安装或更新后必须完全退出 DSH 再打开**：托盘菜单 → 退出（或任务管理器结束 DSH 进程），确认进程消失后重新打开。只关闭窗口或刷新页面不会加载 Host 半区；首次安装时页面里的插件入口还没加载，看到“Host 未连接”不是插件坏了。Electron 运行时会在第一次打开独立面板时自动安装。
 
 ### 方式一：DSH 插件市场（Discover）
 
@@ -95,9 +102,11 @@ dsh plugin --profile desktop add "git+https://github.com/cinewave0/cinewave0-dsh
 
 **打不开独立面板**
 
-- DSH 面板提示「Host 未连接」：Host 半区未加载，重启 DSH；
-- 提示其他错误：查看 `helper.log` 的 spawn / exit 记录；
-- 独立窗启动后立即消失：确认 Electron 路径存在，或查看 `helper.log` 的沙箱重试记录。
+- 第一次打开会先下载 Electron 运行时（约 140 MB），面板里会显示百分比；下载失败会写 `helper.log`，再点一次会重试；
+- DSH 面板提示「Host 未连接」：Host 半区未加载，**完全退出 DSH 后重开**（托盘退出或结束进程，仅刷新页面不够）；
+- 提示「需要 Electron」或「Electron 启动失败」：查看 `helper.log`，或设置 `DSH_QUICK_PANEL_ELECTRON` 指向已有的 `electron.exe`；
+- 独立窗启动后立即消失：查看 `helper.log` 的 `did-fail-load` / `loadURL rejected` / 沙箱重试记录；
+- 窗口已经开着时再点「打开独立面板」不会重复开窗，而是把已有窗口唤起（最小化也会恢复）。
 
 **独立窗没有实时消息**
 
@@ -113,7 +122,8 @@ dsh plugin --profile desktop add "git+https://github.com/cinewave0/cinewave0-dsh
 
 ## 已知限制
 
-- 仅 Windows；独立小应用依赖 DSH 运行与 `$DSH_HOME/electron`；
+- 仅 Windows；独立小应用依赖 DSH 运行，Electron 首次打开时自动下载到 `%USERPROFILE%\.dsh\electron`（需要网络，约 140 MB）；离线环境设 `DSH_QUICK_PANEL_NO_RUNTIME_DOWNLOAD=1` 并手动安装；
+- 自动安装覆盖 `win32-x64` 与 `win32-arm64`；其他架构会提示 `runtime-unavailable`，需要手动放置 `electron.exe`；
 - 独立窗实时消息：Host 能在 DSH 离开对话页后继续镜像新的已结算事件，并在上滚时从 Host 会话事件加载更早；流式 partial 仍依赖 DSH 对话页；
 - 独立窗问题卡：当前会话的 pending 问题会镜像；多题用上一题/下一题，提交后等待 DSH 确认；
 - 独立窗会话切换：数字按钮只负责发起请求，真正切换发生在 DSH 页面内的客户端插件（轮询间隔约 2.5 秒）；DSH 页面关闭或插件未加载时请求会在 30 秒后过期，界面不报错也不切换；
@@ -137,19 +147,23 @@ src/client/runtime.js        React 绑定（DSH 的 require('react') 注入）
 panel/                       独立窗页面（HTML/CSS/JS/icon）
 runtime/electron-helper/     独立窗主进程与 preload
 locale/                      插件标题/描述
-scripts/                     构建、备份、GitHub 同步、市场索引生成
-test/                        Host 回归、客户端 bundle/适配层/源码导入、Electron 面板测试
+scripts/                     构建、备份、GitHub 同步、市场索引生成/校验
+test/                        Host 回归、客户端 bundle/适配层/源码导入、运行时安装、Electron 面板测试
 ```
 
 ## 开发命令
 
 ```powershell
 node scripts/build-client.mjs                    # 由 src/client 生成 client.js
-node test/host.test.mjs                          # Host 回归（11 项）
+node test/host.test.mjs                          # Host 回归（15 项）
 node test/client-bundle.test.mjs                 # 客户端 bundle 信封/工厂形状
 node test/dsh-adapter.test.mjs                   # DSH 服务适配层与降级路径
 node test/source-imports.test.mjs                # 源码模块导入完整性
+node test/runtime-install.test.mjs               # 首次安装 Electron（Windows，真实解压）
+node test/restart-prompt.test.mjs                # 重启提示文案
+node test/helper.test.mjs                        # 真实 Electron helper 启动冒烟（需 electron.exe）
 node test/panel.test.mjs                         # Electron 面板集成测试（需 electron.exe）
+npm run check:market                             # 市场索引指向的 commit 与版本一致
 npm run lint                                     # oxlint（0 warning 门槛）
 node scripts/backup.mjs                          # 备份到 ../backups（zip + sha256 + manifest）
 node scripts/sync-github.mjs --message "..."     # 提交 + 测试 + push

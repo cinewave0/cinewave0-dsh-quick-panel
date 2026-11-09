@@ -106,10 +106,20 @@ git add market/index.json
 git commit -m "market: add v1.0.1"
 git tag v1.0.1
 
+node scripts/check-market-index.mjs   # 索引 commit 的 package.json 版本必须与索引一致
 git push origin main --tags
 ```
 
-注意顺序：**先提交源码，再生成 index**。索引里的 commit 必须指向包含插件代码的那个提交；不要把 index 提交自己的 commit 写进去。
+注意顺序：**先提交源码，再生成 index**。索引里的 commit 必须指向包含插件代码的那个提交；不要把 index 提交自己的 commit 写进去。Release workflow 也会跑 `check-market-index.mjs`，索引指向旧版本会直接让发布失败。
+
+## 5.1 首次打开自动安装 Electron
+
+从 macOS 侧移植：Host 在 `openWindow()` 里解析 Electron（`DSH_QUICK_PANEL_ELECTRON` → `%USERPROFILE%\.dsh\electron\electron.exe`）。缺失时自动下载固定版本（43.3.0）的 win32 x64/arm64 zip，校验 SHA-256 后解压到 `%USERPROFILE%\.dsh\electron`，再由客户端轮询 `/quick-panel/runtime` 显示进度并重试开窗。
+
+- 校验值写在 `index.js` 的 `ELECTRON_ARTIFACTS`；升级 Electron 版本要同时更新版本号、两个 zip 的 SHA-256 与字节数；
+- 镜像：`DSH_QUICK_PANEL_ELECTRON_MIRROR`；离线：`DSH_QUICK_PANEL_NO_RUNTIME_DOWNLOAD=1`；
+- 解压优先用系统 `tar`（bsdtar 可读 zip），失败回退 PowerShell `Expand-Archive`；
+- 测试：`node test/runtime-install.test.mjs`（Windows 上真实下载/校验/解压迷你 zip）。
 
 ## 6. 官方索引
 
@@ -134,7 +144,10 @@ git push origin main --tags
 
 ```powershell
 node test/host.test.mjs
+node test/runtime-install.test.mjs   # Windows 真实解压（CI 的 ubuntu 会跳过）
+node test/restart-prompt.test.mjs
 node test/panel.test.mjs
+npm run check:market
 ```
 
 ## 8. 安全

@@ -138,7 +138,21 @@ window.__ModuleLoader__.load({
           jumpLatest: "最新 ↓",
           openWindow: "打开独立面板",
           windowOpened: "独立面板已打开",
-          windowFailed: "打不开独立面板（Host 未连接）",
+          windowFailed: "打不开独立面板",
+          windowFailedHost: "Host 未连接：请完全退出 DSH（托盘菜单退出或结束进程）后重新打开；仅刷新页面不够。",
+          restartTitle: "插件已安装，需要重启 DSH",
+          restartBody: "DSH 页面还在运行旧版本，所以显示“Host 未连接”。请完全退出 DSH，而不是只关闭窗口或刷新页面。",
+          restartShortcut: "托盘菜单 → 退出（或任务管理器结束 DSH）",
+          restartAfter: "确认 DSH 进程结束后重新打开，再点“打开独立面板”。Electron 运行时已经装好，不会重新下载。",
+          restartLog: "重启后仍提示 Host 未连接，请查看 %USERPROFILE%\\.dsh\\quick-panel\\helper.log。",
+          windowFailedElectron: "独立面板需要 Electron：请安装到 %USERPROFILE%\\.dsh\\electron 或设置 DSH_QUICK_PANEL_ELECTRON",
+          windowFailedOrigin: "当前 DSH 地址不受支持（仅支持本机 127.0.0.1 / localhost）",
+          windowFailedSpawn: "Electron 启动失败，请查看 %USERPROFILE%\\.dsh\\quick-panel\\helper.log",
+          windowFailedTimeout: "Electron 已启动但面板未就绪，请查看 %USERPROFILE%\\.dsh\\quick-panel\\helper.log",
+          runtimeInstalling: "首次使用，正在下载 Electron 运行时（约 140 MB）",
+          runtimeInstallFailed: "Electron 运行时安装失败，请再点一次重试；详情见 helper.log",
+          runtimeInstallTimeout: "等待 Electron 运行时超时，请查看 helper.log",
+          runtimeUnavailable: "当前平台不支持自动安装 Electron",
           disabledInput: "M4 将在此快速输入…",
           version: "v0.1.0 · M6",
           esc: "Esc 收起",
@@ -237,7 +251,21 @@ window.__ModuleLoader__.load({
           jumpLatest: "Latest ↓",
           openWindow: "Open standalone panel",
           windowOpened: "Standalone panel opened",
-          windowFailed: "Could not open the standalone panel (Host offline)",
+          windowFailed: "Could not open the standalone panel",
+          windowFailedHost: "Host offline: quit DSH completely (tray menu → Quit or end the process), then reopen; refreshing the page is not enough.",
+          restartTitle: "Plugin installed — restart DSH",
+          restartBody: "This DSH page is still running the old version, so it shows “Host offline”. Quit DSH completely; closing the window or refreshing the page is not enough.",
+          restartShortcut: "Tray menu → Quit (or end DSH in Task Manager)",
+          restartAfter: "Wait until the DSH process is gone, reopen DSH, then click “Open standalone panel” again. The Electron runtime is already installed and will not download again.",
+          restartLog: "If “Host offline” persists after the restart, check %USERPROFILE%\\.dsh\\quick-panel\\helper.log.",
+          windowFailedElectron: "The standalone panel needs Electron: install it under %USERPROFILE%\\.dsh\\electron or set DSH_QUICK_PANEL_ELECTRON",
+          windowFailedOrigin: "This DSH address is not supported (loopback 127.0.0.1 / localhost only)",
+          windowFailedSpawn: "Electron failed to start; see %USERPROFILE%\\.dsh\\quick-panel\\helper.log",
+          windowFailedTimeout: "Electron started but the panel did not become ready; see %USERPROFILE%\\.dsh\\quick-panel\\helper.log",
+          runtimeInstalling: "First run: downloading the Electron runtime (about 140 MB)",
+          runtimeInstallFailed: "Electron runtime install failed; click again to retry or see helper.log",
+          runtimeInstallTimeout: "Timed out waiting for the Electron runtime; see helper.log",
+          runtimeUnavailable: "Automatic Electron install is not supported on this platform",
           disabledInput: "Quick input arrives in M4…",
           version: "v0.1.0 · M6",
           esc: "Esc to collapse",
@@ -548,6 +576,8 @@ window.__ModuleLoader__.load({
             canPrompt: false,
             canCancel: false,
             companionOpen: false,
+            /** False until the Host answers once; drives the "restart DSH" notice. */
+            hostReady: false,
             usage: null
           }),
           inputActions: null,
@@ -872,6 +902,7 @@ window.__ModuleLoader__.load({
             this.switcher = typeof switcher === "function" ? switcher : null;
           },
           async init() {
+            store.patch({ hostReady: false });
             try {
               const injected = window.__QUICK_PANEL_CONFIG__;
               if (injected && typeof injected.token === "string" && injected.token) {
@@ -900,7 +931,7 @@ window.__ModuleLoader__.load({
               this.applying = false;
               this.rev = Number.isFinite(state.rev) ? state.rev : 0;
               this.ready = true;
-              store.patch({ companionOpen: Boolean(state.companionOpen) });
+              store.patch({ companionOpen: Boolean(state.companionOpen), hostReady: true });
               if (!hasHostData && hasLocalData) await this.push();
               this.setSession(store.state.sessionId);
               this.unsubscribeLive = store.subscribe(() => this.scheduleLive());
@@ -913,6 +944,7 @@ window.__ModuleLoader__.load({
               document.addEventListener("visibilitychange", this.visibilityHandler);
               this.pollTimer = window.setInterval(() => this.poll(), 2500);
             } catch (_error) {
+              store.patch({ hostReady: false });
             }
           },
           async readState() {
@@ -1141,7 +1173,11 @@ window.__ModuleLoader__.load({
           async poll() {
             if (!this.ready || this.applying) return;
             const state = await this.readState();
-            if (!state) return;
+            if (!state) {
+              if (store.state.hostReady) store.patch({ hostReady: false });
+              return;
+            }
+            if (!store.state.hostReady) store.patch({ hostReady: true });
             if (typeof state.companionOpen === "boolean") {
               const wasOpen = store.state.companionOpen;
               store.patch({ companionOpen: state.companionOpen });
@@ -1175,6 +1211,19 @@ window.__ModuleLoader__.load({
               }).catch(() => {
               });
             }, 200);
+          },
+          async runtimeStatus() {
+            if (!this.token) return null;
+            try {
+              const response = await fetch(
+                `${HOST_ROUTE}/runtime?token=${encodeURIComponent(this.token)}`,
+                { cache: "no-store" }
+              );
+              if (!response.ok) return null;
+              return await response.json();
+            } catch (_error) {
+              return null;
+            }
           },
           async openWindow() {
             if (!this.token) return { ok: false, error: "host-unavailable" };
@@ -1221,6 +1270,7 @@ window.__ModuleLoader__.load({
             this.unsubscribeLive = null;
             this.unsubscribeQuestions = null;
             this.ready = false;
+            store.patch({ hostReady: false });
           }
         };
 
@@ -1513,6 +1563,10 @@ window.__ModuleLoader__.load({
       .qp-side-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary,#98a2b3);font:inherit;font-size:12px;cursor:pointer;position:relative;flex:none}
       .qp-side-btn:hover{background:var(--dsw-alias-bg-layer-2,#22262e);color:var(--dsw-alias-label-primary,#e9ecf1)}
       .qp-side-dot{position:absolute;top:4px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-success-primary,#3ddc97);box-shadow:0 0 0 2px var(--dsw-alias-bg-base,#14161a)}
+      .qp-restart-banner{flex:none;margin:0 14px 8px;padding:9px 10px;border-radius:10px;border:1px solid rgb(246 200 90 / .35);background:rgb(246 200 90 / .10);color:var(--dsw-alias-label-primary,#e9ecf1);font-size:10.5px;line-height:1.45;display:flex;flex-direction:column;gap:3px;word-break:break-word}
+      .qp-restart-title{font-size:11.5px;font-weight:600;color:#f2d58a}
+      .qp-restart-shortcut{font-size:12px;font-weight:700;color:#f2d58a}
+      .qp-restart-log{font-size:9.5px;color:var(--dsw-alias-label-secondary,#98a2b3)}
       @media (hover:none){.qp-todo-actions{opacity:1}}
       @media (max-width:520px){.qp-panel{max-width:calc(100vw - 16px)}}
       @media (prefers-reduced-motion:reduce){.qp-dot.is-live,.qp-caret,.qp-feed-dot,.qp-wheel-current,.qp-due-card{animation:none}.qp-panel,.qp-island,.qp-flash{animation:none;transition:none}}
@@ -2633,6 +2687,21 @@ window.__ModuleLoader__.load({
         }
 
         // src/client/panel.js
+        function windowFailureText(t, result) {
+          const code = result && result.error;
+          if (code === "electron-missing" || code === "electron-unusable") return t("windowFailedElectron");
+          if (code === "electron-installing") return t("runtimeInstalling");
+          if (code === "electron-install-failed") return t("runtimeInstallFailed");
+          if (code === "electron-install-timeout") return t("runtimeInstallTimeout");
+          if (code === "runtime-unavailable") return t("runtimeUnavailable");
+          if (code === "unsupported-origin") return t("windowFailedOrigin");
+          if (code === "spawn-failed") return t("windowFailedSpawn");
+          if (code === "companion-timeout") return t("windowFailedTimeout");
+          if (code === "host-unavailable" || code === "origin-unavailable" || code === "request-failed") {
+            return t("windowFailedHost");
+          }
+          return t("windowFailed");
+        }
         function Panel({ t, now, state, anchor, width, maxHeight, onDragStart, due, onSnooze, onComplete, schedule, openSchedule, loadOlder, sendPrompt, stopTurn }) {
           const clock = clockOf(now);
           const connected = Boolean(state.sessionId);
@@ -2653,6 +2722,34 @@ window.__ModuleLoader__.load({
             setFlash(text);
             window.clearTimeout(flashTimer.current);
             flashTimer.current = window.setTimeout(() => setFlash(null), 2600);
+          };
+          const openStandalone = async () => {
+            let result = await hostSync.openWindow();
+            if (result && result.error === "electron-installing") {
+              let runtime = result.runtime || await hostSync.runtimeStatus();
+              for (let attempt = 0; attempt < 1200; attempt += 1) {
+                const percent = runtime && Number.isFinite(runtime.percent) ? runtime.percent : 0;
+                showFlash(percent > 0 ? `${t("runtimeInstalling")} ${percent}%` : t("runtimeInstalling"));
+                await new Promise((resolve) => window.setTimeout(resolve, 1500));
+                runtime = await hostSync.runtimeStatus();
+                if (!runtime) {
+                  result = { ok: false, error: "host-unavailable" };
+                  break;
+                }
+                if (runtime.status === "ready") {
+                  result = await hostSync.openWindow();
+                  break;
+                }
+                if (runtime.status === "failed") {
+                  result = { ok: false, error: "electron-install-failed", detail: runtime.error };
+                  break;
+                }
+              }
+              if (result && result.error === "electron-installing") {
+                result = { ok: false, error: "electron-install-timeout" };
+              }
+            }
+            showFlash(result && result.ok ? t("windowOpened") : windowFailureText(t, result));
           };
           const handoff = (todo) => {
             if (todo.handedOff) {
@@ -2822,11 +2919,7 @@ window.__ModuleLoader__.load({
                       {
                         type: "button",
                         className: "qp-iconbtn",
-                        onClick: () => {
-                          hostSync.openWindow().then((result) => {
-                            showFlash(result && result.ok ? t("windowOpened") : t("windowFailed"));
-                          });
-                        },
+                        onClick: openStandalone,
                         title: t("openWindow"),
                         "aria-label": t("openWindow")
                       },
@@ -2863,6 +2956,15 @@ window.__ModuleLoader__.load({
                   )
                 )
               ),
+              !state.hostReady ? h(
+                "div",
+                { className: "qp-restart-banner", role: "alert" },
+                h("div", { className: "qp-restart-title" }, t("restartTitle")),
+                h("div", { className: "qp-restart-body" }, t("restartBody")),
+                h("div", { className: "qp-restart-shortcut" }, t("restartShortcut")),
+                h("div", { className: "qp-restart-after" }, t("restartAfter")),
+                h("div", { className: "qp-restart-log" }, t("restartLog"))
+              ) : null,
               due ? h(
                 "div",
                 { className: "qp-due-banner" },
@@ -2945,11 +3047,7 @@ window.__ModuleLoader__.load({
                   {
                     type: "button",
                     className: "qp-window-row",
-                    onClick: () => {
-                      hostSync.openWindow().then((result) => {
-                        showFlash(result && result.ok ? t("windowOpened") : t("windowFailed"));
-                      });
-                    }
+                    onClick: openStandalone
                   },
                   h(IconWindow, { size: 13 }),
                   h("span", null, t("openWindow"))

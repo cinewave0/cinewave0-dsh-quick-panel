@@ -15,6 +15,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v5
         with:
@@ -22,6 +24,9 @@ jobs:
 
       - name: Install
         run: npm install --no-audit --no-fund
+
+      - name: Market index points at a matching commit
+        run: node scripts/check-market-index.mjs
 
       - name: Build client bundle
         run: node scripts/build-client.mjs
@@ -38,9 +43,11 @@ jobs:
           node --check client.js
           node --check panel/panel.js
           node --check runtime/electron-helper/main.cjs
+          node --check runtime/electron-helper/preload.cjs
           node --check scripts/backup.mjs
           node --check scripts/sync-github.mjs
           node --check scripts/make-market-index.mjs
+          node --check scripts/check-market-index.mjs
 
       - name: Client bundle envelope
         run: node test/client-bundle.test.mjs
@@ -53,6 +60,12 @@ jobs:
 
       - name: Adapter tests
         run: node test/dsh-adapter.test.mjs
+
+      - name: Runtime provisioning
+        run: node test/runtime-install.test.mjs
+
+      - name: Restart prompt
+        run: node test/restart-prompt.test.mjs
 
       - name: Package contents
         run: npm pack --dry-run

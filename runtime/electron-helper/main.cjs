@@ -13,10 +13,14 @@ const ISLAND_HEIGHT = 48
 
 app.setName('dsh-quick-panel')
 
+/** The companion only ever loads a loopback panel page; keep the fence in one place. */
+const LOCAL_PANEL_URL = /^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\//
+const isLocalPanelUrl = (value) => typeof value === 'string' && LOCAL_PANEL_URL.test(value)
+
 const urlArgument = process.argv.find((value) => value.startsWith('--url='))
 const target =
   process.env.QUICK_PANEL_URL || (urlArgument ? urlArgument.slice('--url='.length) : '')
-const allowed = /^http:\/\/127\.0\.0\.1:\d+\//.test(target)
+const allowed = isLocalPanelUrl(target)
 
 const home = process.env.DSH_HOME || path.join(os.homedir(), '.dsh')
 const boundsFile = path.join(home, 'quick-panel', 'window.json')
@@ -169,6 +173,7 @@ function queueSave() {
 
 function setMode(next) {
   if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
   if (next === mode) {
     if (next === 'panel') {
       mainWindow.show()
@@ -280,10 +285,30 @@ function createWindow() {
   } catch (_error) {
     /* keep the raw target */
   }
-  mainWindow.loadURL(launchUrl)
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!/^https?:\/\/127\.0\.0\.1:\d+\//.test(url)) event.preventDefault()
+  mainWindow.loadURL(launchUrl).catch((error) => {
+    console.error(`quick-panel: loadURL rejected: ${String((error && error.message) || error)}`)
+    if (!quitting) {
+      quitting = true
+      app.quit()
+    }
   })
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isLocalPanelUrl(url)) event.preventDefault()
+  })
+  mainWindow.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, failedUrl, isMainFrame) => {
+      if (!isMainFrame) return
+      const safeUrl = String(failedUrl || '').split('?')[0]
+      console.error(`quick-panel: did-fail-load code=${errorCode} ${errorDescription} url=${safeUrl}`)
+      // A blank window would be reported as "opened" by the Host; quit so the
+      // spawn readiness wait can surface a real error instead.
+      if (!quitting) {
+        quitting = true
+        app.quit()
+      }
+    },
+  )
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
   const raiseWindow = () => {

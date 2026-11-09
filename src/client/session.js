@@ -16,6 +16,8 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
         canPrompt: false,
         canCancel: false,
         companionOpen: false,
+        /** False until the Host answers once; drives the "restart DSH" notice. */
+        hostReady: false,
         usage: null,
       }),
       inputActions: null,
@@ -381,6 +383,7 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
       },
 
       async init() {
+        store.patch({ hostReady: false })
         try {
           const injected = window.__QUICK_PANEL_CONFIG__
           if (injected && typeof injected.token === 'string' && injected.token) {
@@ -409,7 +412,7 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
           this.applying = false
           this.rev = Number.isFinite(state.rev) ? state.rev : 0
           this.ready = true
-          store.patch({ companionOpen: Boolean(state.companionOpen) })
+          store.patch({ companionOpen: Boolean(state.companionOpen), hostReady: true })
           if (!hasHostData && hasLocalData) await this.push()
           this.setSession(store.state.sessionId)
           this.unsubscribeLive = store.subscribe(() => this.scheduleLive())
@@ -422,6 +425,7 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
           document.addEventListener('visibilitychange', this.visibilityHandler)
           this.pollTimer = window.setInterval(() => this.poll(), 2500)
         } catch (_error) {
+          store.patch({ hostReady: false })
           /* the Host bridge is optional; localStorage remains the fallback */
         }
       },
@@ -692,7 +696,11 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
       async poll() {
         if (!this.ready || this.applying) return
         const state = await this.readState()
-        if (!state) return
+        if (!state) {
+          if (store.state.hostReady) store.patch({ hostReady: false })
+          return
+        }
+        if (!store.state.hostReady) store.patch({ hostReady: true })
         if (typeof state.companionOpen === 'boolean') {
           const wasOpen = store.state.companionOpen
           store.patch({ companionOpen: state.companionOpen })
@@ -726,6 +734,20 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
             body: JSON.stringify({ activeSessionId: sessionId || null }),
           }).catch(() => {})
         }, 200)
+      },
+
+      async runtimeStatus() {
+        if (!this.token) return null
+        try {
+          const response = await fetch(
+            `${HOST_ROUTE}/runtime?token=${encodeURIComponent(this.token)}`,
+            { cache: 'no-store' },
+          )
+          if (!response.ok) return null
+          return await response.json()
+        } catch (_error) {
+          return null
+        }
       },
 
       async openWindow() {
@@ -774,6 +796,7 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
         this.unsubscribeLive = null
         this.unsubscribeQuestions = null
         this.ready = false
+        store.patch({ hostReady: false })
       },
     }
 
