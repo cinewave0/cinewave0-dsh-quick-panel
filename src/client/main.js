@@ -10,6 +10,7 @@ import { FooterAction, Bridge, StatusBridge, UsageBridge, FeedBridge } from './b
       hostSync.ctx = ctx
       const dsh = createDsh(ctx)
       hostSync.setSwitcher((sessionId) => dsh.switchSession(sessionId))
+      hostSync.setNewSessioner(() => dsh.newSession())
 
       // The Question mirror is optional; a host without uiSession still mounts.
       dsh.bindQuestions((uiSession) => {

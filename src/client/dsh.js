@@ -70,6 +70,28 @@ export function createDsh(ctx) {
       }
     },
 
+    /**
+     * Start a new Session exactly like the sidebar's New Session button.
+     * `startSession` opens a blank Session in the current/recent workspace.
+     */
+    newSession() {
+      const workspace = get('uiWorkspace')
+      if (!workspace) return false
+      const start =
+        typeof workspace.startSession === 'function'
+          ? workspace.startSession
+          : typeof workspace.connectWorkspace === 'function'
+            ? workspace.connectWorkspace
+            : null
+      if (!start) return false
+      try {
+        start.call(workspace)
+        return true
+      } catch (_error) {
+        return false
+      }
+    },
+
     loadOlder(sessionId) {
       const session = sessionOf(sessionId)
       if (!session || typeof session.loadOlder !== 'function') return

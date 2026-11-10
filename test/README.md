@@ -15,6 +15,8 @@ node test/host.test.mjs
 - 审批接管：allow / reject / stale / 其他对话委派 / 已有 pending 委派；
 - 用量：30 日聚合、当前会话 fallback、余额缓存；
 - 最近会话：5 个槽位、按活动时间排序、归档过滤、切换请求与 ack、非法/未知 id 拒绝；
+- 新建会话：`new-session` 排队、ack、会话变化时清除；
+- 命令推送：SSE `/events` 的 token 校验与切换/新建事件；
 - Electron 解析：缺失（`electron-missing`）、不是文件（`electron-unusable`）、非 loopback origin 拒绝、`/runtime` 状态与 token 校验；
 - 问题卡：问题镜像、答案请求、ack 清理；
 - Host feed：种子回填、live 事件追加、客户端 feed 优先。

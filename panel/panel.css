@@ -817,6 +817,16 @@ body.drop-active .footer {
   animation: session-slot-pulse 0.9s ease-in-out infinite;
 }
 
+.session-slot-add {
+  margin-right: 2px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.session-slot-add:hover:not(:disabled) {
+  color: var(--brand);
+}
+
 @keyframes session-slot-pulse {
   0%,
   100% {

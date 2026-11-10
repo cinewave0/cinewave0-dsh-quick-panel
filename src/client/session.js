@@ -368,6 +368,7 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
       sessionTimer: 0,
       liveTimer: 0,
       liveInFlight: false,
+      eventSource: null,
       liveSignature: '',
       unsubscribeLive: null,
       unsubscribeQuestions: null,
@@ -377,9 +378,16 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
       /** Asks the DSH page to open a Session; set once by main.js. */
       switcher: null,
       lastSwitchRequestId: '',
+      /** Asks the DSH page to start a blank Session; set once by main.js. */
+      newSessioner: null,
+      lastNewSessionRequestId: '',
 
       setSwitcher(switcher) {
         this.switcher = typeof switcher === 'function' ? switcher : null
+      },
+
+      setNewSessioner(newSessioner) {
+        this.newSessioner = typeof newSessioner === 'function' ? newSessioner : null
       },
 
       async init() {
@@ -417,9 +425,16 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
           this.setSession(store.state.sessionId)
           this.unsubscribeLive = store.subscribe(() => this.scheduleLive())
           this.bindQuestions()
+          this.bindCommands()
           this.scheduleLive(true)
-          this.focusHandler = () => this.scheduleLive(true)
-          this.visibilityHandler = () => this.scheduleLive(true)
+          this.focusHandler = () => {
+            this.scheduleLive(true)
+            void this.poll()
+          }
+          this.visibilityHandler = () => {
+            this.scheduleLive(true)
+            void this.poll()
+          }
           window.addEventListener('focus', this.focusHandler)
           window.addEventListener('blur', this.focusHandler)
           document.addEventListener('visibilitychange', this.visibilityHandler)
@@ -498,6 +513,46 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
         if (this.unsubscribeQuestions) return
         this.unsubscribeQuestions = uiSession.sessionStatus.subscribe(() => this.scheduleLive())
         if (this.ready) this.scheduleLive(true)
+      },
+
+      /**
+       * Commands arrive over server-sent events so a minimized DSH window does
+       * not wait for its throttled 2.5 s poll; the poll stays as the fallback.
+       */
+      bindCommands() {
+        if (typeof EventSource !== 'function' || !this.token) return
+        if (this.eventSource) return
+        try {
+          this.eventSource = new EventSource(
+            `${HOST_ROUTE}/events?token=${encodeURIComponent(this.token)}`,
+          )
+        } catch (_error) {
+          this.eventSource = null
+          return
+        }
+        this.eventSource.onmessage = (event) => {
+          let payload = null
+          try {
+            payload = JSON.parse(event.data)
+          } catch (_error) {
+            payload = null
+          }
+          if (payload) void this.handleCommand(payload)
+        }
+        this.eventSource.onerror = () => {
+          /* EventSource reconnects on its own; polling covers the gap */
+        }
+      },
+
+      async handleCommand(payload) {
+        if (!payload || typeof payload !== 'object') return
+        if (payload.type === 'switch-session') {
+          await this.handleSwitchRequest(payload)
+          return
+        }
+        if (payload.type === 'new-session') {
+          await this.handleNewSessionRequest(payload)
+        }
       },
 
       questionDebug() {
@@ -641,6 +696,34 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
         }
       },
 
+      /** Apply a "new session" request from the companion, then acknowledge it. */
+      async handleNewSessionRequest(request) {
+        if (!request || typeof request !== 'object') return
+        const id = typeof request.id === 'string' ? request.id : ''
+        if (!id || id === this.lastNewSessionRequestId) return
+        this.lastNewSessionRequestId = id
+        let ok = false
+        if (this.newSessioner) {
+          try {
+            ok = this.newSessioner() === true
+          } catch (_error) {
+            ok = false
+          }
+        }
+        try {
+          await fetch(`${HOST_ROUTE}/action?token=${encodeURIComponent(this.token)}`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'x-quick-panel-token': this.token,
+            },
+            body: JSON.stringify({ type: 'new-session-ack', id, ok }),
+          })
+        } catch (_error) {
+          /* the Host expires the request on its own */
+        }
+      },
+
       async pushLive() {
         if (!this.ready || !this.token) return
         // The Host live mirror only serves the companion; skip it while closed.
@@ -708,6 +791,7 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
         }
         await this.handleQuestionAnswer(state.questionAnswer)
         await this.handleSwitchRequest(state.switchRequest)
+        await this.handleNewSessionRequest(state.newSessionRequest)
         const rev = Number.isFinite(state.rev) ? state.rev : 0
         if (rev === this.rev) return
         this.applying = true
@@ -795,6 +879,14 @@ import { pad2, userImageRefs, hostLiveRow, hostLivePartial } from './text.js'
         this.liveTimer = 0
         this.unsubscribeLive = null
         this.unsubscribeQuestions = null
+        if (this.eventSource) {
+          try {
+            this.eventSource.close()
+          } catch (_error) {
+            /* already closed */
+          }
+          this.eventSource = null
+        }
         this.ready = false
         store.patch({ hostReady: false })
       },

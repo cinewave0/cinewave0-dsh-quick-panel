@@ -889,6 +889,7 @@ window.__ModuleLoader__.load({
           sessionTimer: 0,
           liveTimer: 0,
           liveInFlight: false,
+          eventSource: null,
           liveSignature: "",
           unsubscribeLive: null,
           unsubscribeQuestions: null,
@@ -898,8 +899,14 @@ window.__ModuleLoader__.load({
           /** Asks the DSH page to open a Session; set once by main.js. */
           switcher: null,
           lastSwitchRequestId: "",
+          /** Asks the DSH page to start a blank Session; set once by main.js. */
+          newSessioner: null,
+          lastNewSessionRequestId: "",
           setSwitcher(switcher) {
             this.switcher = typeof switcher === "function" ? switcher : null;
+          },
+          setNewSessioner(newSessioner) {
+            this.newSessioner = typeof newSessioner === "function" ? newSessioner : null;
           },
           async init() {
             store.patch({ hostReady: false });
@@ -936,9 +943,16 @@ window.__ModuleLoader__.load({
               this.setSession(store.state.sessionId);
               this.unsubscribeLive = store.subscribe(() => this.scheduleLive());
               this.bindQuestions();
+              this.bindCommands();
               this.scheduleLive(true);
-              this.focusHandler = () => this.scheduleLive(true);
-              this.visibilityHandler = () => this.scheduleLive(true);
+              this.focusHandler = () => {
+                this.scheduleLive(true);
+                void this.poll();
+              };
+              this.visibilityHandler = () => {
+                this.scheduleLive(true);
+                void this.poll();
+              };
               window.addEventListener("focus", this.focusHandler);
               window.addEventListener("blur", this.focusHandler);
               document.addEventListener("visibilitychange", this.visibilityHandler);
@@ -1010,6 +1024,43 @@ window.__ModuleLoader__.load({
             if (this.unsubscribeQuestions) return;
             this.unsubscribeQuestions = uiSession.sessionStatus.subscribe(() => this.scheduleLive());
             if (this.ready) this.scheduleLive(true);
+          },
+          /**
+           * Commands arrive over server-sent events so a minimized DSH window does
+           * not wait for its throttled 2.5 s poll; the poll stays as the fallback.
+           */
+          bindCommands() {
+            if (typeof EventSource !== "function" || !this.token) return;
+            if (this.eventSource) return;
+            try {
+              this.eventSource = new EventSource(
+                `${HOST_ROUTE}/events?token=${encodeURIComponent(this.token)}`
+              );
+            } catch (_error) {
+              this.eventSource = null;
+              return;
+            }
+            this.eventSource.onmessage = (event) => {
+              let payload = null;
+              try {
+                payload = JSON.parse(event.data);
+              } catch (_error) {
+                payload = null;
+              }
+              if (payload) void this.handleCommand(payload);
+            };
+            this.eventSource.onerror = () => {
+            };
+          },
+          async handleCommand(payload) {
+            if (!payload || typeof payload !== "object") return;
+            if (payload.type === "switch-session") {
+              await this.handleSwitchRequest(payload);
+              return;
+            }
+            if (payload.type === "new-session") {
+              await this.handleNewSessionRequest(payload);
+            }
           },
           questionDebug() {
             try {
@@ -1123,6 +1174,32 @@ window.__ModuleLoader__.load({
             } catch (_error) {
             }
           },
+          /** Apply a "new session" request from the companion, then acknowledge it. */
+          async handleNewSessionRequest(request) {
+            if (!request || typeof request !== "object") return;
+            const id = typeof request.id === "string" ? request.id : "";
+            if (!id || id === this.lastNewSessionRequestId) return;
+            this.lastNewSessionRequestId = id;
+            let ok = false;
+            if (this.newSessioner) {
+              try {
+                ok = this.newSessioner() === true;
+              } catch (_error) {
+                ok = false;
+              }
+            }
+            try {
+              await fetch(`${HOST_ROUTE}/action?token=${encodeURIComponent(this.token)}`, {
+                method: "POST",
+                headers: {
+                  "content-type": "application/json",
+                  "x-quick-panel-token": this.token
+                },
+                body: JSON.stringify({ type: "new-session-ack", id, ok })
+              });
+            } catch (_error) {
+            }
+          },
           async pushLive() {
             if (!this.ready || !this.token) return;
             if (!store.state.companionOpen) return;
@@ -1185,6 +1262,7 @@ window.__ModuleLoader__.load({
             }
             await this.handleQuestionAnswer(state.questionAnswer);
             await this.handleSwitchRequest(state.switchRequest);
+            await this.handleNewSessionRequest(state.newSessionRequest);
             const rev = Number.isFinite(state.rev) ? state.rev : 0;
             if (rev === this.rev) return;
             this.applying = true;
@@ -1269,6 +1347,13 @@ window.__ModuleLoader__.load({
             this.liveTimer = 0;
             this.unsubscribeLive = null;
             this.unsubscribeQuestions = null;
+            if (this.eventSource) {
+              try {
+                this.eventSource.close();
+              } catch (_error) {
+              }
+              this.eventSource = null;
+            }
             this.ready = false;
             store.patch({ hostReady: false });
           }
@@ -1327,6 +1412,22 @@ window.__ModuleLoader__.load({
               if (!workspace || typeof workspace.openSession !== "function") return false;
               try {
                 workspace.openSession(sessionId);
+                return true;
+              } catch (_error) {
+                return false;
+              }
+            },
+            /**
+             * Start a new Session exactly like the sidebar's New Session button.
+             * `startSession` opens a blank Session in the current/recent workspace.
+             */
+            newSession() {
+              const workspace = get("uiWorkspace");
+              if (!workspace) return false;
+              const start = typeof workspace.startSession === "function" ? workspace.startSession : typeof workspace.connectWorkspace === "function" ? workspace.connectWorkspace : null;
+              if (!start) return false;
+              try {
+                start.call(workspace);
                 return true;
               } catch (_error) {
                 return false;
@@ -3517,6 +3618,7 @@ window.__ModuleLoader__.load({
           hostSync.ctx = ctx;
           const dsh = createDsh(ctx);
           hostSync.setSwitcher((sessionId) => dsh.switchSession(sessionId));
+          hostSync.setNewSessioner(() => dsh.newSession());
           dsh.bindQuestions((uiSession) => {
             hostSync.uiSession = uiSession;
             hostSync.bindQuestions();

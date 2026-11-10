@@ -11,6 +11,7 @@ test('missing services degrade every action instead of throwing', async () => {
   assert.deepEqual(await dsh.stopTurn('session-x'), { ok: false })
   assert.equal(dsh.switchSession('session-x'), false)
   assert.equal(dsh.switchSession(''), false)
+  assert.equal(dsh.newSession(), false)
 
   let bound = 'unset'
   dsh.bindQuestions((uiSession) => {
@@ -35,6 +36,7 @@ test('throwing host services are treated as missing', async () => {
   assert.doesNotThrow(() => dsh.openSchedule())
   assert.deepEqual(await dsh.sendPrompt('session-x', 'hi', 'normal'), { ok: false })
   assert.equal(dsh.switchSession('session-x'), false)
+  assert.equal(dsh.newSession(), false)
   let bound = 'unset'
   dsh.bindQuestions((uiSession) => {
     bound = uiSession
@@ -66,7 +68,12 @@ test('working services receive the expected calls', async () => {
     get(name) {
       if (name === 'sessions') return { binding: () => ({ session }) }
       if (name === 'layout') return { selectPanel: (id) => calls.push(['panel', id]) }
-      if (name === 'uiWorkspace') return { openSession: (id) => calls.push(['switch', id]) }
+      if (name === 'uiWorkspace') {
+        return {
+          openSession: (id) => calls.push(['switch', id]),
+          startSession: () => calls.push(['new']),
+        }
+      }
       if (name === 'remote') return { schedule: { id: 'schedule-remote' } }
       return undefined
     },
@@ -81,6 +88,7 @@ test('working services receive the expected calls', async () => {
   assert.deepEqual(dsh.schedule(), { id: 'schedule-remote' })
   dsh.openSchedule()
   assert.equal(dsh.switchSession('session-y'), true)
+  assert.equal(dsh.newSession(), true)
   dsh.loadOlder('session-x')
   assert.deepEqual(await dsh.sendPrompt('session-x', 'hello', 'normal'), { ok: true })
   assert.deepEqual(await dsh.stopTurn('session-x'), { ok: true })
@@ -94,6 +102,7 @@ test('working services receive the expected calls', async () => {
   assert.deepEqual(calls, [
     ['panel', 'schedules'],
     ['switch', 'session-y'],
+    ['new'],
     ['older'],
     ['begin', { mode: 'normal', text: 'hello', attachments: [] }],
     ['prompt', [{ type: 'text', text: 'hello' }], 'normal', 'request-1'],

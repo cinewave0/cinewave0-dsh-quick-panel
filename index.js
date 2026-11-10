@@ -48,7 +48,8 @@ const IMAGE_MEDIA_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'ima
 /** The companion mirrors DSH's sidebar as five numbered, title-less switches. */
 const RECENT_SESSION_LIMIT = 5
 const RECENT_SESSION_TTL = 3000
-const SESSION_SWITCH_TTL = 30000
+/** A queued switch/new-session must survive timer throttling in a minimized DSH page. */
+const SESSION_COMMAND_TTL = 5 * 60 * 1000
 /** Session ids are used to build a projection file path; keep them path-safe. */
 const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/u
 const packageRoot = dirname(fileURLToPath(import.meta.url))
@@ -764,6 +765,8 @@ export function apply(ctx) {
     dshVisible: null,
     /** A switch the companion asked for; the DSH page acknowledges and clears it. */
     switchRequest: null,
+    /** A new-session request; the DSH page creates the session and clears it. */
+    newSessionRequest: null,
   }
   let approvalSeq = 0
   let pendingApproval = null
@@ -1308,11 +1311,47 @@ export function apply(ctx) {
     }
   }
 
-  /** Drop a switch request the DSH page never acknowledged. */
+  /** Drop a switch/new-session request the DSH page never acknowledged. */
   const expireSwitchRequest = () => {
-    if (live.switchRequest && Date.now() - live.switchRequest.at > SESSION_SWITCH_TTL) {
+    if (live.switchRequest && Date.now() - live.switchRequest.at > SESSION_COMMAND_TTL) {
       live.switchRequest = null
     }
+    if (live.newSessionRequest && Date.now() - live.newSessionRequest.at > SESSION_COMMAND_TTL) {
+      live.newSessionRequest = null
+    }
+  }
+
+  /**
+   * Commands are pushed to the DSH page instead of waiting for its 2.5 s poll:
+   * a minimized window throttles timers (down to once a minute), which made a
+   * labelled switch look unresponsive and let the old 30 s request expire.
+   * Server-sent events are network-driven, so they still arrive while hidden;
+   * polling stays as the fallback for a page without EventSource.
+   */
+  const eventClients = new Set()
+  let eventHeartbeat = null
+  const broadcastCommand = (payload) => {
+    const line = `data: ${JSON.stringify(payload)}\n\n`
+    for (const client of eventClients) {
+      try {
+        client.write(line)
+      } catch (_error) {
+        eventClients.delete(client)
+      }
+    }
+  }
+  const ensureEventHeartbeat = () => {
+    if (eventHeartbeat) return
+    eventHeartbeat = setInterval(() => {
+      for (const client of eventClients) {
+        try {
+          client.write(': ping\n\n')
+        } catch (_error) {
+          eventClients.delete(client)
+        }
+      }
+    }, 20000)
+    if (typeof eventHeartbeat.unref === 'function') eventHeartbeat.unref()
   }
 
   const usageView = () => {
@@ -1697,6 +1736,7 @@ export function apply(ctx) {
         sessionLabel: sessionLabel(),
         recentSessions: refreshRecentSessions(),
         switchRequest: live.switchRequest,
+        newSessionRequest: live.newSessionRequest,
         companionOpen: companionIsOpen(),
         feed,
         feedSource: useHostFeed ? 'host' : 'client',
@@ -1727,6 +1767,33 @@ export function apply(ctx) {
         return sendJson(response, 401, { ok: false, error: 'unauthorized' })
       }
       sendJson(response, 200, { ok: true, ...runtimeView() })
+    },
+  }
+
+  const eventsRoute = {
+    kind: 'exact',
+    path: `${ROUTE_BASE}/events`,
+    handler: (request, response) => {
+      const url = requestUrl(request)
+      if (!url) return sendJson(response, 400, { ok: false, error: 'bad-request' })
+      if (request.method !== 'GET') return sendJson(response, 405, { ok: false, error: 'method' })
+      if (tokenFrom(request, url) !== token) {
+        return sendJson(response, 401, { ok: false, error: 'unauthorized' })
+      }
+      response.writeHead(200, {
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-cache, no-transform',
+        connection: 'keep-alive',
+        'x-accel-buffering': 'no',
+      })
+      response.write(': connected\n\n')
+      eventClients.add(response)
+      ensureEventHeartbeat()
+      const cleanup = () => {
+        eventClients.delete(response)
+      }
+      response.on('close', cleanup)
+      response.on('error', cleanup)
     },
   }
 
@@ -1959,12 +2026,28 @@ export function apply(ctx) {
           return sendJson(response, 409, { ok: false, error: 'unknown-session' })
         }
         live.switchRequest = { id: randomUUID(), sessionId, at: Date.now() }
+        broadcastCommand({
+          type: 'switch-session',
+          id: live.switchRequest.id,
+          sessionId,
+        })
         note(`switch requested ${sessionId}`)
         return sendJson(response, 200, { ok: true, id: live.switchRequest.id })
       }
       if (body.type === 'switch-session-ack') {
         const id = typeof body.id === 'string' ? body.id : ''
         if (live.switchRequest && live.switchRequest.id === id) live.switchRequest = null
+        return sendJson(response, 200, { ok: true })
+      }
+      if (body.type === 'new-session') {
+        live.newSessionRequest = { id: randomUUID(), at: Date.now() }
+        broadcastCommand({ type: 'new-session', id: live.newSessionRequest.id })
+        note('new session requested')
+        return sendJson(response, 200, { ok: true, id: live.newSessionRequest.id })
+      }
+      if (body.type === 'new-session-ack') {
+        const id = typeof body.id === 'string' ? body.id : ''
+        if (live.newSessionRequest && live.newSessionRequest.id === id) live.newSessionRequest = null
         return sendJson(response, 200, { ok: true })
       }
       if (body.type === 'approval-answer') {
@@ -2122,6 +2205,9 @@ export function apply(ctx) {
         if (live.switchRequest && live.switchRequest.sessionId === next.activeSessionId) {
           live.switchRequest = null
         }
+        // A new session shows up as an activeSessionId change; clear the request
+        // even if the page's ack was lost.
+        live.newSessionRequest = null
         hostFeedSession = null
         hostFeed = []
         hostFeedHasOlder = false
@@ -2199,6 +2285,7 @@ export function apply(ctx) {
       webServer.register(configRoute),
       webServer.register(stateRoute),
       webServer.register(runtimeRoute),
+      webServer.register(eventsRoute),
       webServer.register(attachmentRoute),
       webServer.register(uploadRoute),
       webServer.register(actionRoute),
@@ -2225,6 +2312,18 @@ export function apply(ctx) {
         pendingApproval.answer('cancelled')
         pendingApproval = null
       }
+      if (eventHeartbeat) {
+        clearInterval(eventHeartbeat)
+        eventHeartbeat = null
+      }
+      for (const client of eventClients) {
+        try {
+          client.end()
+        } catch (_error) {
+          /* the page is already gone */
+        }
+      }
+      eventClients.clear()
       if (child) {
         try {
           child.kill()

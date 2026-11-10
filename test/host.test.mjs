@@ -114,6 +114,22 @@ function makeHarness(name, options = {}) {
       statusCode: 200,
       headers: {},
       body: null,
+      writes: [],
+      listeners: {},
+      writeHead: (status, headers) => {
+        res.statusCode = status
+        for (const [name, value] of Object.entries(headers || {})) {
+          res.headers[name.toLowerCase()] = value
+        }
+      },
+      write: (chunk) => {
+        res.writes.push(String(chunk))
+        return true
+      },
+      on: (event, callback) => {
+        res.listeners[event] = callback
+        return res
+      },
       setHeader: (name, value) => {
         res.headers[name.toLowerCase()] = value
       },
@@ -144,6 +160,13 @@ function makeHarness(name, options = {}) {
     }
   }
   const query = `token=${encodeURIComponent(token)}`
+  const openEvents = () => {
+    const res = makeResponse()
+    const route = routes.get('/quick-panel/events')
+    assert.ok(route, 'events route missing')
+    route.handler(makeRequest({ method: 'GET', url: `/quick-panel/events?${query}`, headers: {} }), res)
+    return res
+  }
   const post = (value) =>
     call(`/quick-panel/action?${query}`, {
       method: 'POST',
@@ -156,6 +179,7 @@ function makeHarness(name, options = {}) {
     home,
     call,
     post,
+    openEvents,
     listeners,
     state: async () => (await call(`/quick-panel/state?${query}`)).json,
     cleanup: () => rmSync(home, { recursive: true, force: true }),
@@ -754,6 +778,65 @@ test('runtime endpoint exposes the install state and is token protected', async 
     assert.equal(result.json.ok, true)
     assert.equal(result.json.status, 'idle')
     assert.equal(typeof result.json.supported, 'boolean')
+  } finally {
+    harness.cleanup()
+  }
+})
+
+test('new-session request is queued, acknowledged and cleared by a session change', async () => {
+  const harness = makeHarness('new-session')
+  try {
+    let state = await harness.state()
+    assert.equal(state.newSessionRequest, null)
+
+    const requested = await harness.post({ type: 'new-session' })
+    assert.equal(requested.status, 200)
+    assert.equal(requested.json.ok, true)
+    assert.equal(typeof requested.json.id, 'string')
+    state = await harness.state()
+    assert.equal(state.newSessionRequest.id, requested.json.id)
+
+    await harness.post({ type: 'new-session-ack', id: requested.json.id })
+    state = await harness.state()
+    assert.equal(state.newSessionRequest, null)
+
+    await harness.post({ type: 'new-session' })
+    await harness.post({ activeSessionId: 'session-new' })
+    state = await harness.state()
+    assert.equal(state.newSessionRequest, null)
+  } finally {
+    harness.cleanup()
+  }
+})
+
+test('switch and new-session commands are pushed over SSE', async () => {
+  const harness = makeHarness('events', {
+    activeSessionId: 'session-test',
+    projections: [
+      {
+        id: 'session-other',
+        row: { sessionListMetadata: { ver: 1, seq: 1, val: { lastPromptAt: Date.now() } } },
+      },
+    ],
+  })
+  try {
+    const events = harness.openEvents()
+    assert.equal(events.statusCode, 200)
+    assert.match(events.headers['content-type'] || '', /text\/event-stream/u)
+    assert.match(events.writes.join(''), /: connected/u)
+
+    const switched = await harness.post({ type: 'switch-session', sessionId: 'session-other' })
+    assert.equal(switched.status, 200)
+    let stream = events.writes.join('')
+    assert.match(stream, /"type":"switch-session"/u)
+    assert.match(stream, /"sessionId":"session-other"/u)
+
+    await harness.post({ type: 'new-session' })
+    stream = events.writes.join('')
+    assert.match(stream, /"type":"new-session"/u)
+
+    const unauthorized = await harness.call('/quick-panel/events')
+    assert.equal(unauthorized.status, 401)
   } finally {
     harness.cleanup()
   }

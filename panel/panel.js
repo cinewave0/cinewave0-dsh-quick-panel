@@ -12,6 +12,7 @@ let snapshot = {
   activeSessionId: null,
   recentSessions: [],
   switchRequest: null,
+  newSessionRequest: null,
   feed: [],
   feedSource: 'client',
   feedHasOlder: false,
@@ -447,7 +448,7 @@ function updateFeedStatus() {
       : ''
 }
 
-/** Five numbered slots: click one to make DSH open that recent Session. */
+/** The "+" then five numbered slots: new Session, or open a recent one. */
 function renderSessionSwitch() {
   const host = $('session-switch')
   if (!host) return
@@ -460,9 +461,22 @@ function renderSessionSwitch() {
     snapshot.switchRequest && typeof snapshot.switchRequest.sessionId === 'string'
       ? snapshot.switchRequest.sessionId
       : ''
-  const signature = `${slots.map((item) => item.sessionId).join(',')}|${active}|${pending}`
+  const newPending =
+    snapshot.newSessionRequest && typeof snapshot.newSessionRequest.id === 'string'
+      ? snapshot.newSessionRequest.id
+      : ''
+  const signature = `${slots.map((item) => item.sessionId).join(',')}|${active}|${pending}|${newPending}`
   if (host.dataset.signature === signature) return
   host.dataset.signature = signature
+  const add = document.createElement('button')
+  add.type = 'button'
+  add.className = 'session-slot session-slot-add'
+  add.textContent = '+'
+  add.disabled = Boolean(pending || newPending)
+  if (newPending) add.classList.add('is-pending')
+  add.title = '新建会话'
+  add.setAttribute('aria-label', '新建会话')
+  add.addEventListener('click', () => void createSession())
   const buttons = slots.map((item, index) => {
     const button = document.createElement('button')
     button.type = 'button'
@@ -471,15 +485,36 @@ function renderSessionSwitch() {
     const isActive = item.sessionId === active
     if (isActive) button.classList.add('is-active')
     if (item.sessionId === pending) button.classList.add('is-pending')
-    button.disabled = isActive || Boolean(pending)
+    button.disabled = isActive || Boolean(pending || newPending)
     const label = isActive ? '当前会话' : `切换到最近第 ${index + 1} 个会话`
     button.title = label
     button.setAttribute('aria-label', label)
     if (!isActive) button.addEventListener('click', () => void switchSession(item.sessionId))
     return button
   })
-  host.replaceChildren(...buttons)
-  host.hidden = buttons.length === 0
+  host.replaceChildren(add, ...buttons)
+  host.hidden = false
+}
+
+async function createSession() {
+  if (snapshot.switchRequest || snapshot.newSessionRequest) return
+  try {
+    const result = await post({ type: 'new-session' })
+    if (!result || result.ok !== true) {
+      pushNotification('new-session-failed', '新建会话失败', 'DSH 未响应请求', 'new-session-failed')
+      return
+    }
+    if (result.id) {
+      snapshot = {
+        ...snapshot,
+        newSessionRequest: { id: result.id, at: Date.now() },
+      }
+      renderSessionSwitch()
+    }
+    await refresh(false)
+  } catch (_error) {
+    pushNotification('new-session-failed', '新建会话失败', 'DSH 未响应请求', 'new-session-failed')
+  }
 }
 
 async function switchSession(sessionId) {
@@ -1581,6 +1616,10 @@ async function refresh(force) {
       recentSessions: Array.isArray(next.recentSessions) ? next.recentSessions : [],
       switchRequest:
         next.switchRequest && typeof next.switchRequest === 'object' ? next.switchRequest : null,
+      newSessionRequest:
+        next.newSessionRequest && typeof next.newSessionRequest === 'object'
+          ? next.newSessionRequest
+          : null,
     }
     renderApprovalLock()
     if (snapshot.activeSessionId !== previousSessionId) clearAttachments()
@@ -1637,7 +1676,12 @@ async function refresh(force) {
     renderSessionLabel()
     renderSessionSwitch()
     renderUsage()
-    if (!approvalAnswering) setSync(Date.now() < doneUntil && doneText ? doneText : '已同步')
+    if (!approvalAnswering) {
+      const waiting = Boolean(snapshot.switchRequest || snapshot.newSessionRequest)
+      setSync(
+        waiting ? '等待 DSH 页面响应…' : Date.now() < doneUntil && doneText ? doneText : '已同步',
+      )
+    }
   } catch (_error) {
     setSync('离线，重试中…')
   } finally {

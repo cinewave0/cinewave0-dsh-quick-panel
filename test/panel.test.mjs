@@ -36,6 +36,8 @@ const uploads = []
 const prompts = []
 const switches = []
 let switchRequest = null
+const newSessions = []
+let newSessionRequest = null
 
 const server = createServer((request, response) => {
   const url = new URL(request.url, origin)
@@ -88,6 +90,7 @@ const server = createServer((request, response) => {
           { sessionId: 'session-e', updatedAt: Date.now() - 5000 },
         ],
         switchRequest,
+        newSessionRequest,
         sessionLabel: '测试对话 · session',
         companionOpen: true,
         feed: [
@@ -165,6 +168,17 @@ const server = createServer((request, response) => {
   }
   if (url.pathname === '/test/switch-ack') {
     switchRequest = null
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.end(JSON.stringify({ ok: true }))
+    return
+  }
+  if (url.pathname === '/test/new-session') {
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.end(JSON.stringify(newSessions))
+    return
+  }
+  if (url.pathname === '/test/new-session-ack') {
+    newSessionRequest = null
     response.writeHead(200, { 'content-type': 'application/json' })
     response.end(JSON.stringify({ ok: true }))
     return
@@ -255,6 +269,13 @@ const server = createServer((request, response) => {
           switchRequest = { id: `switch-${switches.length}`, sessionId: value.sessionId, at: Date.now() }
           response.writeHead(200, { 'content-type': 'application/json' })
           response.end(JSON.stringify({ ok: true, id: switchRequest.id }))
+          return
+        }
+        if (value && value.type === 'new-session') {
+          newSessions.push(value)
+          newSessionRequest = { id: `new-session-${newSessions.length}`, at: Date.now() }
+          response.writeHead(200, { 'content-type': 'application/json' })
+          response.end(JSON.stringify({ ok: true, id: newSessionRequest.id }))
           return
         }
         if (value && value.type === 'set-approval-lock') {

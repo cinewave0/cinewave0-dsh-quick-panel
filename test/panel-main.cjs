@@ -98,6 +98,11 @@ app.whenReady().then(async () => {
   const slots = await win.webContents.executeJavaScript(`({
     count: document.querySelectorAll('.session-slot').length,
     labels: [...document.querySelectorAll('.session-slot')].map((node) => node.textContent),
+    numbered: [...document.querySelectorAll('.session-slot:not(.session-slot-add)')].map(
+      (node) => node.textContent),
+    addFirst: document.getElementById('session-switch').firstElementChild?.classList.contains(
+      'session-slot-add') ?? false,
+    addLabel: document.querySelector('.session-slot-add')?.getAttribute('aria-label') ?? '',
     active: [...document.querySelectorAll('.session-slot')].findIndex((node) =>
       node.classList.contains('is-active')),
     hidden: document.getElementById('session-switch').hidden,
@@ -111,15 +116,20 @@ app.whenReady().then(async () => {
       return { titleRight: title.right, groupLeft: group.left, groupRight: group.right, statusLeft: status.left };
     })(),
   })`)
-  assert.equal(slots.count, 5)
-  assert.deepEqual(slots.labels, ['1', '2', '3', '4', '5'])
-  assert.equal(slots.active, 1)
+  assert.equal(slots.count, 6)
+  assert.deepEqual(slots.labels, ['+', '1', '2', '3', '4', '5'])
+  assert.deepEqual(slots.numbered, ['1', '2', '3', '4', '5'])
+  assert.equal(slots.addFirst, true)
+  assert.equal(slots.addLabel, '新建会话')
+  assert.equal(slots.active, 2)
   assert.equal(slots.hidden, false)
   assert.deepEqual(slots.headOrder, ['实时消息', 'session-switch', 'feed-status'])
   assert.ok(slots.geometry.groupLeft > slots.geometry.titleRight, 'slots sit after the title')
   assert.ok(slots.geometry.statusLeft > slots.geometry.groupRight, 'status sits after the slots')
 
-  await win.webContents.executeJavaScript(`document.querySelectorAll('.session-slot')[2].click()`)
+  await win.webContents.executeJavaScript(
+    `document.querySelectorAll('.session-slot:not(.session-slot-add)')[2].click()`,
+  )
   await delay(500)
   const switched = await fetchJson('/test/switch')
   assert.equal(switched.length, 1)
@@ -138,6 +148,25 @@ app.whenReady().then(async () => {
   })`)
   assert.equal(settledUi.pending, 0)
   assert.equal(settledUi.disabled, false)
+
+  await win.webContents.executeJavaScript(`document.querySelector('.session-slot-add').click()`)
+  await delay(500)
+  const created = await fetchJson('/test/new-session')
+  assert.equal(created.length, 1)
+  const newPendingUi = await win.webContents.executeJavaScript(`({
+    addPending: document.querySelector('.session-slot-add').classList.contains('is-pending'),
+    disabled: [...document.querySelectorAll('.session-slot')].every((node) => node.disabled),
+  })`)
+  assert.equal(newPendingUi.addPending, true)
+  assert.equal(newPendingUi.disabled, true)
+  await fetchJson('/test/new-session-ack')
+  await delay(1400)
+  const newSettledUi = await win.webContents.executeJavaScript(`({
+    pending: document.querySelectorAll('.session-slot.is-pending').length,
+    disabled: [...document.querySelectorAll('.session-slot')].every((node) => node.disabled),
+  })`)
+  assert.equal(newSettledUi.pending, 0)
+  assert.equal(newSettledUi.disabled, false)
   await win.webContents.executeJavaScript(
     `document.querySelector('.feed-section').scrollIntoView({ block: 'start' })`,
   )
