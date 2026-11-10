@@ -2,7 +2,7 @@
 
 仓库：<https://github.com/cinewave0/cinewave0-dsh-quick-panel>
 
-**当前状态：GitHub 路线（npm 暂缓）。仓库转 public 后，在 Settings → Pages 开启 `main / (root)`，索引固定到 v1.0.4 的 commit `fff04bbe3f9938cacade83f497d970b9bde9d19d`。**
+**当前状态：GitHub 路线（npm 暂缓）。仓库转 public 后，在 Settings → Pages 开启 `main / (root)`，索引固定到 v1.0.5-beta.1 的 commit `6fbda1f6eb6b438907b45c7337c863ada8c8669b`。**
 
 DSH 市场不是上传到某个后台，而是读取一个 **HTTPS 上的 plugin market index JSON**。  
 本项目的索引文件是 `market/index.json`，发布后地址为：
@@ -197,7 +197,7 @@ curl.exe -sS https://cinewave0.github.io/cinewave0-dsh-quick-panel/market/index.
 4. `market/index.json` 的 source 用 **git commit**，指向已发布的 tag 对应 commit；
 5. 每个新版本：先打 `vX.Y.Z` tag 触发 Release，再把 `market/index.json` 的版本/commit 更新到该 tag，提交并推送（Pages 会自动重建）。
 
-当前已发布：`v1.0.4`（commit `fff04bb`），索引 source 已指向该 commit；上一稳定版 `v1.0.3`（commit `6ec9490`）。正式 tag 会作为 Latest Release，beta tag 才被标记为 Pre-release。
+当前已发布：`v1.0.5-beta.1`（commit `6fbda1f`），索引 source 已指向该 commit；上一稳定版 `v1.0.4`（commit `fff04bb`）。beta tag 会被 Release workflow 标记为 Pre-release，不会顶掉 Latest。
 
 > **已解决（v1.0.4，2026-11-09）**：正式版的 tag 快照已包含最新 README、`docs/panel.png`、`SECURITY.md` 与测试说明；Release 说明由 `.github/release-notes-header.md` 统一补充安装与重启要求。以后发版按第 5 节的顺序提交（源码 → 索引），不要先打 tag 再补文档。
 
