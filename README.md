@@ -120,6 +120,18 @@ dsh plugin --profile desktop add "git+https://github.com/cinewave0/cinewave0-dsh
 - 独立窗打开时，DSH 面板的提醒到点逻辑会暂停，由独立窗处理；
 - 独立窗关闭后，DSH 面板恢复提醒。
 
+**从 link 开发切换到市场安装（Windows）**
+
+`link` 安装会在 `%USERPROFILE%\.dsh\profiles\desktop\node_modules\dsh-quick-panel` 留一个 **junction** 指向项目目录。如果直接点市场安装，pnpm 会替换这个路径，可能**顺着 junction 删除项目目录里的文件**（包括 `.git`，表现为 `git status` 报 “not a git repository”）。
+
+正确顺序：先在插件页卸载，再删掉残留链接，然后从市场安装：
+
+```powershell
+cmd /c rmdir "$env:USERPROFILE\.dsh\profiles\desktop\node_modules\dsh-quick-panel"
+```
+
+如果项目目录已经被误删：用 `git clone` 或之前的备份恢复，再把 `.git` 元数据补回；工作树文件通常只是被部分清理，先别覆盖备份。
+
 ## 已知限制
 
 - 仅 Windows；独立小应用依赖 DSH 运行，Electron 首次打开时自动下载到 `%USERPROFILE%\.dsh\electron`（需要网络，约 140 MB）；离线环境设 `DSH_QUICK_PANEL_NO_RUNTIME_DOWNLOAD=1` 并手动安装；

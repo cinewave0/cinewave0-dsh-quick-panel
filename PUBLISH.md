@@ -165,6 +165,10 @@ npm run check:market
 - 备份：`node scripts/backup.mjs`，默认写到 `../backups`，生成 zip + `.sha256` + `.manifest.json`（含版本、分支、HEAD、未提交路径）。
 - 同步：`node scripts/sync-github.mjs --message "..."` 会先跑 Host 测试再 push；`--dry-run` 只看计划，`--no-push` 只提交；直连 GitHub 被重置时加 `--proxy http://127.0.0.1:7897`（或设 `DSH_GIT_PROXY`）。
 - CI：`.github/workflows/ci.yml` 在 push/PR 时构建 client、校验产物、跑客户端/Host 测试与打包检查。
+- Windows 上从 link 开发切回市场安装：先在插件页卸载，再删除残留 junction，**否则 pnpm 替换该路径时会顺着 junction 清理项目目录（含 `.git`）**：
+  ```powershell
+  cmd /c rmdir "$env:USERPROFILE\.dsh\profiles\desktop\node_modules\dsh-quick-panel"
+  ```
 
 ## 10. tag 发布（GitHub Release）
 
