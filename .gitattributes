@@ -1,0 +1,2 @@
+# Keep the working tree byte-identical across Windows and CI checkouts.
+* text=auto eol=lf
