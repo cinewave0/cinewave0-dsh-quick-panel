@@ -1,6 +1,6 @@
 # 快捷面板 / Quick Panel
 
-> 当前版本：1.0.4（正式版）
+> 当前版本：1.0.5-beta.1（预发布）
 
 [![CI](https://github.com/cinewave0/cinewave0-dsh-quick-panel/actions/workflows/ci.yml/badge.svg)](https://github.com/cinewave0/cinewave0-dsh-quick-panel/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cinewave0/cinewave0-dsh-quick-panel)](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases)
@@ -37,16 +37,16 @@ DSH Desktop 的快捷面板插件：在 DSH 窗口内提供一个浮岛与面板
 https://cinewave0.github.io/cinewave0-dsh-quick-panel/market/index.json
 ```
 
-然后搜索 **Quick Panel** 安装 `1.0.4`。索引固定到 v1.0.4 的 Git commit。
+然后搜索 **Quick Panel** 安装 `1.0.5-beta.1`。索引固定到 v1.0.5-beta.1 的 Git commit。
 
-> 这是正式版；上一稳定版 `v1.0.3` 仍可从 Releases 安装。从任何 beta 升级也建议先完全退出 DSH 再装。
+> 索引当前指向预发布版；想用稳定版，用下面的 Release 包安装 `v1.0.4`。从任何版本升级都建议先完全退出 DSH 再装。
 
 ### 方式二：Release 包
 
-从 [Releases](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases) 下载 `dsh-quick-panel-1.0.4.tgz`，用 `SHA256SUMS` 校验，然后：
+从 [Releases](https://github.com/cinewave0/cinewave0-dsh-quick-panel/releases) 下载 `dsh-quick-panel-1.0.5-beta.1.tgz`，用 `SHA256SUMS` 校验，然后：
 
 ```powershell
-dsh plugin --profile desktop add <下载目录>\dsh-quick-panel-1.0.4.tgz
+dsh plugin --profile desktop add <下载目录>\dsh-quick-panel-1.0.5-beta.1.tgz
 ```
 
 ### 方式三：git commit
@@ -135,6 +135,12 @@ dsh plugin --profile desktop add "git+https://github.com/cinewave0/cinewave0-dsh
 - 独立窗提醒与 DSH 面板的“单一负责人”协调仍在完善。
 
 ## 更新日志
+
+### 1.0.5-beta.1（2026-11-10）
+
+- 「实时消息」标题栏新增 `+`：新建会话（等同侧边栏“新建会话”），位于 1–5 数字之前；
+- 会话切换/新建改由 Host 通过 SSE 推送，不再依赖 2.5 秒轮询；DSH 最小化时定时器被节流也能立即响应；
+- 请求保留时间 30 秒 → 5 分钟，窗口恢复可见时立即补执行；等待期间面板显示「等待 DSH 页面响应…」。
 
 ### 1.0.4（2026-11-09）
 
